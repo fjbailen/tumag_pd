@@ -42,8 +42,8 @@ yf=y0+900  #FInal pixel of the subframe in Y direction
 #Path and name of the FITS file containing the focused and defocused images
 ext='.fits' #Format of the images to be opened (FITS)
 dir_folder='./' #Path of the folder containing the FITS file
-ffolder='Flight/12_07_18_26' #Name of the folder containing th FITS file
-fname='PD_12_07_18_26_cam_%g_ima_%g'%(cam,Nima) #Name of the FITS file
+ffolder='Flight/15_7_20_02' #Name of the folder containing th FITS file
+fname='PD_15_7_20_02_cam_%g_ima_%g'%(cam,Nima) #Name of the FITS file
 txtfolder=dir_folder +'txt'+ '/' + fname + '/svd'#Path of the txt files
 
 #Colormap limits for wavefront representation

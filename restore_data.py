@@ -16,7 +16,7 @@ plt.rcParams['figure.constrained_layout.use'] = True
 Imports and plots the set of Zernike coefficients and
 the wavefront map over the different subfields.
 """
-ind1=0 #First index of the series
+ind1=0 #First index of the series#
 ind2=9 #Last index of the series
 k_max=9 #Number of txt files employed to average the wavefront
 low_f=0.2 #Cutoff of the Wiener filter
