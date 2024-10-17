@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 from matplotlib.ticker import MultipleLocator
 import numpy as np
 import math_func2 as mf
-import pd_functions_v21 as pdf
+import pd_functions_v22 as pdf
 from scipy.fftpack import fftshift, ifftshift, fft2, ifft2
 plt.rcParams['figure.constrained_layout.use'] = True #For the layout to be as tight as possible
 
@@ -44,7 +44,7 @@ ext='.fits' #Format of the images to be opened (FITS)
 dir_folder='./' #Path of the folder containing the FITS file
 ffolder='Flight/15_7_20_02' #Name of the folder containing th FITS file
 fname='PD_15_7_20_02_cam_%g_ima_%g'%(cam,Nima) #Name of the FITS file
-txtfolder=dir_folder +'txt'+ '/' + fname + '/svd'#Path of the txt files
+txtfolder=dir_folder +'txt'+ '/' + fname #Path of the txt files
 
 #Colormap limits for wavefront representation
 Npl=3 #Number of subplots in horizontal and vertical direction of main plot
@@ -128,6 +128,7 @@ for k in k_vec:
     Results after optimization files
     """
     filename=txtfolder+'/a_optimized_Jmax_%g_k_%g.txt'%(Jmax,k)
+  
     #Import txt files
     data=np.genfromtxt(filename,delimiter='\t',unpack=False,dtype=None,\
     encoding='utf-8')
@@ -140,8 +141,6 @@ for k in k_vec:
     a=np.concatenate((np.array([0,0,0]),a)) #First three are offset and tiptilt
     av[:,k]=a
     norm_a=2*np.pi/np.linalg.norm(a)
-
-
     maxit_ind=np.argwhere(names=='maxit')
     maxit=float(values[maxit_ind])
     wcut_ind=np.argwhere(names=='w_cut')
@@ -185,20 +184,22 @@ if Npl>1:
 index_ceros=np.argwhere(np.sum(np.abs(av), axis=0)==0)
 av=np.delete(av, index_ceros, axis=1)
 
+print(av)
+quit()
 
 fig18,ax18=plt.subplots()
 ax18.imshow(av,cmap='seismic',vmin=-0.35,vmax=0.35)
 
 #Average zernike coefficients and wavefront
 a_aver=np.mean(av,axis=1)
+
+
 a_rms=np.std(av,axis=1)
 norm_aver=2*np.pi/np.linalg.norm(a_aver)
 norm_aver2=2*np.pi/np.linalg.norm(a_aver[4:]) #To exclude tip/tilt and defocus
 print('WFE RMS:lambda/',np.round(norm_aver,2))
 wavef_aver=pdf.wavefront(a_aver,0,RHO,THETA,ap)
 print(a_aver)
-
-
 
 fig4,axs4=plt.subplots()
 axs4.errorbar(range(Jmin,Jmax),a_aver[(Jmin-1):]/(2*np.pi), yerr=a_rms[(Jmin-1):]/(2*np.pi),fmt='-o',capsize=3,color='k',label='Retrieved')
@@ -226,13 +227,6 @@ axs5.set_title(r'$\lambda$/%.3g'%round(norm_aver,2))
 """
 Restoration with average Zernike coefficients
 """
-#Padding of 10 % of pixels to recover the whole FOV
-size=ima.shape[0]
-pad_width = int(size*10/(100-10*2))
-ima_pad = np.zeros((size+pad_width*2,size+pad_width*2,2))
-for i in range(2):
-    ima_pad[:,:,i]=np.pad(ima[:,:,i,], pad_width=((pad_width, pad_width), (pad_width, pad_width)), mode='symmetric')  
-
 #Select focused and defocused image before correction
 Nrest=ima.shape[0]
 of0=ima[:Nrest,:Nrest,0]
@@ -248,11 +242,9 @@ a_d=defoc*np.pi/np.sqrt(3) #Defocus in radians
 
 
 #Scene restoration
-cut=int(0.1*ima_pad.shape[0]) #Select only the non-padded region
-o_plot,_,noise_filt=pdf.object_estimate(ima_pad,a_aver,a_d,low_f=low_f,
-                                        wind=True,cut=cut,cobs=cobs,
-                                        reg1=reg1,reg2=reg2)
-o_plot=o_plot[cut:-cut,cut:-cut]
+o_plot,noise_filt=pdf.restore_ima(ima,a_aver,pd=a_d,low_f=low_f,
+                                  reg1=reg1,reg2=reg2,cobs=cobs)
+
 contrast_0=np.std(of0)/(np.mean(of0))*100
 contrast_rest=np.std(o_plot)/(np.mean(o_plot))*100
 min_rest=np.min(o_plot)

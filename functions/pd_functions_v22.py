@@ -2001,7 +2001,7 @@ def compute_nuc(N):
 
 def retrieve_aberr(k_max,Jmax,cobs,txtfolder):
     """
-    Functio that retrieves the average of the Zernike coeeficients saved in the
+    Function that retrieves the average of the Zernike coeeficients saved in the
     txt files of a given directory.
     Inputs:
         k_max: Number of txt files employed to average the wavefront
@@ -2030,9 +2030,6 @@ def retrieve_aberr(k_max,Jmax,cobs,txtfolder):
         a=np.concatenate((np.array([0,0,0]),a)) #First three are offset and tiptilt
         av[:,k]=a
 
-        maxit_ind=np.argwhere(names=='maxit')
-        wcut_ind=np.argwhere(names=='w_cut')
-
         #Wavefront
         wavef=wavefront(a,0,RHO,THETA,ap)
 
@@ -2055,7 +2052,40 @@ def padding(ima):
     """
     size=ima.shape[0]
     pad_width = int(size*10/(100-10*2))
-    ima_pad = np.zeros((size+pad_width*2,size+pad_width*2,ima.shape[-1]))
-    for i in range(ima.shape[-1]):
-        ima_pad[:,:,i]=np.pad(ima[:,:,i], pad_width=((pad_width, pad_width), (pad_width, pad_width)), mode='symmetric')  
+    if ima.ndim==3:
+        ima_pad = np.zeros((size+pad_width*2,size+pad_width*2,ima.shape[-1]))
+        for i in range(ima.shape[-1]):
+            ima_pad[:,:,i]=np.pad(ima[:,:,i], pad_width=((pad_width, pad_width), (pad_width, pad_width)), mode='symmetric')  
+    elif ima.ndim==2:
+        ima_pad=np.pad(ima, pad_width=((pad_width, pad_width), (pad_width, pad_width)), mode='symmetric')
     return ima_pad
+
+def restore_ima(ima,zernikes,pd=0,low_f=0.2,reg1=0.05,reg2=1,cobs=32.4):
+    """
+    This function restores a 2D image using a given set of Zernike 
+    coefficients and a modified Wiener filter that includes a 
+    regularization in the denominator of the type reg1*(nu/nuc)**reg2
+    Input:
+        ima: 2D array of dimensions NxN or 3D array of dimensions
+            NxNxNima, where Nima is the number of PD images
+        zernikes: list or 1D array of Zernike coefficients ordered
+            following Noll's 1979 rule
+        pd: phase diversity between the images in case ima is a 3D array
+        low_f: lower threshold of the optimum (Wiener's) filter
+        reg1: 1st parameter of regularization term
+        reg2: 2nd parameter of the regularization term 
+        cobs: percentage of the central obscuration
+    Output:
+        ima_rest: restored image over the whole FOV of the input image
+        noise_filt: noise filter employed for the restoration
+    """
+    #Image padding to reduce edge effects
+    ima_pad=padding(ima)
+    cut=int(0.1*ima_pad.shape[0]) #To later select the non-padded region
+
+    #If we select only one image of the series
+    ima_rest,_,noise_filt=object_estimate(ima_pad,zernikes,pd,
+                                                wind=True,cobs=cobs,cut=cut,
+                                                low_f=low_f,reg1=reg1,reg2=reg2)
+    ima_rest=ima_rest[cut:-cut,cut:-cut]
+    return ima_rest, noise_filt
