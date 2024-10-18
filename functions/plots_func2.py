@@ -102,14 +102,16 @@ def movie2(im1,im2,filename,axis=2,fps=15,title=['',''],cmap='gray'):
     #To use colorbars
     if axis==2:
         axs[0].imshow(im1[:,:,0],cmap=cmap,vmin=min,vmax=max)
-        #plt.colorbar(orientation='horizontal')
-        axs[0].set_title(title[0])
-
         axs[1].imshow(im2[:,:,0],cmap=cmap,vmin=min,vmax=max)
-        #plt.colorbar(orientation='horizontal')
-        axs[1].set_title(title[1])
-        tx1=axs[0].text(100, 100, '', fontsize=15, va='top',color='white')
-        tx2=axs[1].text(100, 100, '', fontsize=15, va='top',color='white')
+    elif axis==0:
+        axs[0].imshow(im1[0,:,:],cmap=cmap,vmin=min,vmax=max)
+        axs[1].imshow(im2[0,:,:],cmap=cmap,vmin=min,vmax=max)
+    #plt.colorbar(orientation='horizontal')
+    axs[0].set_title(title[0]) 
+    #plt.colorbar(orientation='horizontal')
+    axs[1].set_title(title[1])
+    tx1=axs[0].text(100, 100, '', fontsize=15, va='top',color='white')
+    tx2=axs[1].text(100, 100, '', fontsize=15, va='top',color='white')
 
     #Refresh frames
     def animate(i):
@@ -121,12 +123,16 @@ def movie2(im1,im2,filename,axis=2,fps=15,title=['',''],cmap='gray'):
             #Plots
             axs[0].imshow(im1[:,:,i],cmap=cmap,vmin=min,vmax=max)
             axs[1].imshow(im2[:,:,i],cmap=cmap,vmin=min,vmax=max)
-            tx1.set_text('%g'%cont1+r'$\,\%$')
-            tx2.set_text('%g'%cont2+r'$\,\%$')
-        elif axis==1:
-            axs[0].imshow(im1[:,i,:],cmap=cmap,vmin=min,vmax=max)
         elif axis==0:
+            #Compute contrasts
+            cont1=np.round(100*np.std(im1[i,:,:])/np.mean(im1[i,:,:]),1)
+            cont2=np.round(100*np.std(im2[i,:,:])/np.mean(im2[i,:,:]),1)
+
+            #Plots
             axs[0].imshow(im1[i,:,:],cmap=cmap,vmin=min,vmax=max)
+            axs[1].imshow(im2[i,:,:],cmap=cmap,vmin=min,vmax=max)
+        tx1.set_text('%g'%cont1+r'$\,\%$')
+        tx2.set_text('%g'%cont2+r'$\,\%$')
     ani = FuncAnimation(fig, animate, frames=n, repeat=False,blit=False)
     ani.save('./'+filename, writer=writer)
     plt.close()

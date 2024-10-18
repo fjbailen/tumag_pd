@@ -14,6 +14,7 @@ plt.rcParams['figure.constrained_layout.use'] = True #For the layout to be as ti
 Imports and plots the set of Zernike coefficients and
 the wavefront map over the different subfields.
 """
+N=300 #Dimension of the subpatches to run PD on
 realign=False #Realign focused-defocused image with pixel accuracy?
 Nima=1 #39 #Number of images in the series to be considered
 cam=0 #Cam index: 0 or 1
@@ -23,9 +24,11 @@ reg2=1 #Regularization parameter for the restoration
 cobs=32.4 #18.5 (MPS) 32.4 (Sunrise) #Diameter of central obscuration as a percentage of the aperture
 Jmax=22# 16 or 22.Maximum index of the zernike polynomials
 Jmin=4 #Minimum index of the zernike polynomials
-if pdf.wvl==517.3e-9:
+wvl,fnum,Delta_x=pdf.tumag_params()
+nuc,R=pdf.compute_nuc(N,wvl,fnum,Delta_x)
+if wvl==517.3e-9:
     dmin=-1.51107 #Defocus in wavelength units 
-elif pdf.wvl==525.02e-9:
+elif wvl==525.02e-9:
     dmin=-1.489
 dmax=dmin+0.05 #Maximum defocus in wavelength units
 deltad=0.1 #Step of the defocus (>dmax-dmin if there is only one value of the defocus)
@@ -99,10 +102,10 @@ multiple=True
 """
 Loop
 """
-cut=int(0.15*pdf.N)#29 #None#Subframing crop to avoid edges
-ima_array=pdf.scanning(ima,Lsiz=pdf.N,cut=cut)
-RHO,THETA=pdf.sampling2()
-ap=pdf.aperture(pdf.N,pdf.R,cobs=cobs)
+cut=int(0.15*N)#29 #None#Subframing crop to avoid edges
+ima_array=pdf.scanning(ima,Lsiz=N,cut=cut)
+RHO,THETA=pdf.sampling2(N,R)
+ap=pdf.aperture(N,R,cobs=cobs)
 
 k_vec=np.arange(0,ima_array.shape[0])
 k_max=k_vec.shape[0]
@@ -147,7 +150,7 @@ for k in k_vec:
     w_cut=float(values[wcut_ind])
 
     #Wavefront
-    wavef=pdf.wavefront(a,0,RHO,THETA,ap)
+    wavef=pdf.wavefront(a,0,RHO,THETA,ap,R,N)
 
 
     """
@@ -184,9 +187,7 @@ if Npl>1:
 index_ceros=np.argwhere(np.sum(np.abs(av), axis=0)==0)
 av=np.delete(av, index_ceros, axis=1)
 
-print(av)
-quit()
-
+#2D plot of Zernike coefficients for each subpatch
 fig18,ax18=plt.subplots()
 ax18.imshow(av,cmap='seismic',vmin=-0.35,vmax=0.35)
 
@@ -198,7 +199,7 @@ a_rms=np.std(av,axis=1)
 norm_aver=2*np.pi/np.linalg.norm(a_aver)
 norm_aver2=2*np.pi/np.linalg.norm(a_aver[4:]) #To exclude tip/tilt and defocus
 print('WFE RMS:lambda/',np.round(norm_aver,2))
-wavef_aver=pdf.wavefront(a_aver,0,RHO,THETA,ap)
+wavef_aver=pdf.wavefront(a_aver,0,RHO,THETA,ap,R,N)
 print(a_aver)
 
 fig4,axs4=plt.subplots()
@@ -250,8 +251,6 @@ contrast_rest=np.std(o_plot)/(np.mean(o_plot))*100
 min_rest=np.min(o_plot)
 max_rest=np.max(o_plot)
 
-#Save o_plot
-#pdf.save_image(o_plot,'reconstructed.fits',folder='')
 
 #Original and restored images
 fig6,ax6=plt.subplots(1,2)
@@ -267,7 +266,7 @@ ax6[1].set_title('Contrast (%%): %.3g '%contrast_rest)
 ax6[0].tick_params(axis='both', which='both', length=0)
 ax6[1].tick_params(axis='both', which='both', length=0)
 #plt.savefig('./results/refocfine155_pair',transparent=True)
-#plt.savefig(output + str(pdf.N) + 'px_restored.png')
+#plt.savefig(output + str(N) + 'px_restored.png')
 
 
 """
@@ -299,7 +298,7 @@ ax7.set_title('Noise filter')
 fig9,axs9=plt.subplots()
 power_radial_recons=pdf.power_radial(o_plot)
 power_radial_of0=pdf.power_radial(of0)
-nuc,_=pdf.compute_nuc(o_plot.shape[0])
+nuc,_=pdf.compute_nuc(o_plot.shape[0],wvl,fnum,Delta_x)
 radius=np.arange(power_radial_recons.shape[0])/nuc
 axs9.semilogy(radius,power_radial_of0,label='Original')
 axs9.semilogy(radius,power_radial_recons,label='Restored')
@@ -311,7 +310,7 @@ plt.close()
 
 
 #Defocus inferred
-defocus_length=a_aver[3]*(8*np.sqrt(3)*pdf.wvl*(pdf.fnum)**2)/(np.pi*magnif**2)
+defocus_length=a_aver[3]*(8*np.sqrt(3)*wvl*fnum**2)/(np.pi*magnif**2)
 print('Defocus inferred at F4:',round(defocus_length*1e3,4),'mm')
 print('Defocus inferred at image:',round(defocus_length*magnif**2*1e3,4),'mm')
 quit()

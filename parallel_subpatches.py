@@ -5,7 +5,7 @@ import numpy as np
 import os
 import sys
 sys.path.append('./functions')
-import pd_functions_v21 as pdf
+import pd_functions_v22 as pdf
 import multiprocessing as mtp
 np.set_printoptions(precision=4,suppress=True)
 from matplotlib import pyplot as plt
@@ -19,13 +19,16 @@ import plots_func2 as pf
 Input parameters
 """
 check_image=False
-realign=False #Realign focused-defocused image with pixel accuracy?
+realign=True #Realign focused-defocused image with pixel accuracy?
+N=300 #Dimension of the subpatches to run PD on
 cobs=32.4 #18.5 (MPS) 32.4 (Sunrise) #Diameter of central obscuration as a percentage of the aperture
 n_cores=16 #Number of cores of the PC to be employed for parallelization
+wvl,fnum,Delta_x=pdf.tumag_params()
+nuc,R=pdf.compute_nuc(N,wvl,fnum,Delta_x)
 
 #Path and name of the FITS file containing the focused and defocused images
 cam=0 #Cam 0 or cam 1
-Nima=1 #Number of images in the series
+Nima=39 #Number of images in the series
 dir_folder='./' #Path of the folder containing the FITS file
 ffolder='Flight/15_7_20_02' #Name of the folder containing th FITS file
 fname='PD_15_7_20_02_cam_%g_ima_%g'%(cam,Nima) #Name of the FITS file
@@ -43,7 +46,7 @@ tol=0.05#0.01 #Tolerance criterium for stopping iterations (Bonet's powerpoint)
 maxnorm=2#0.8 #Maximum norm of the solution at each iteration [rads]
 maxit=30 #Maximum number of iterations
 w_cut=0.06#0.075#0.02#0.08 #Cut-off for singular values (fraction of the maximum)
-cut=int(0.15*pdf.N)#29#int(0.1*pdf.N) #None#Subframing crop to avoid edges
+cut=int(0.15*N)#29#int(0.1*pdf.N) #None#Subframing crop to avoid edges
 svd_meth='svd' #'svd' or 'lstsq'
 
 #Region to be subframed
@@ -61,9 +64,9 @@ focus_pos=0
 defocus_pos=(32.02-28.33)*1e-3 #Defocus introduced by PD plate
 magnif=2.47
 defocus_length=magnif**2*np.abs(focus_pos-defocus_pos)
-a_d=-np.pi*defocus_length/(8*np.sqrt(3)*pdf.wvl*(pdf.fnum)**2)
+a_d=-np.pi*defocus_length/(8*np.sqrt(3)*wvl*fnum**2)
 a_d=np.array([0,a_d])
-defoc=-defocus_length/(8*pdf.wvl*(pdf.fnum)**2) #Peak-to-peak defocus (wvl units)
+defoc=-defocus_length/(8*wvl*fnum**2) #Peak-to-peak defocus (wvl units)
 print('Defocus:',round(defoc,3),' lambda')
 
 
@@ -93,13 +96,15 @@ if crop==True:
     elif ima.ndim==3:
         ima=ima[x0:xf,y0:yf,:]
 
+
 #Re-order axis and normalize the image [# of image,dimx,dimy,F4/PD]
+#Nima=31
 if ima.ndim==4:
     ima=np.moveaxis(ima,0,-1)
     ima=ima[:Nima,:] #Select Nima pair of images
     ima=np.flip(ima,axis=-1) #Invert the focused and defocused index
     for i in range(Nima):
-        ima[i,:]=ima[i,:]/np.mean(ima[:,0]) #Normalize by the mean of the focused image
+        ima[i,:]=ima[i,:]/np.mean(ima[0,:,:,0]) #Normalize by the mean of the focused image
 
     
 #print(ima.shape)
@@ -108,21 +113,24 @@ if ima.ndim==4:
 
 
 #Realign images of the series
+#ima_aligned=0*ima
 if realign is True:
     kappa=20
     for j in range(2):
         print('Re-aligning images with index %g'%j)
-        F_focused=fft2(ima[0,:,:,j])
+        Gshift=fft2(ima[0,:,:,j])
         for i in range(1,ima.shape[0]):
+            F0=Gshift
             F_comp=fft2(ima[i,:,:,j])
-            error,row_shift,col_shift,Gshift=sf.dftreg(F_focused,F_comp,kappa)
+            error,row_shift,col_shift,Gshift=sf.dftreg(F0,F_comp,kappa)
             deltax=int(np.round(row_shift))
             deltay=int(np.round(col_shift))
             ima[i,:,:,j]=np.roll(ima[i,:,:,j],(deltax,deltay),axis=(0,1))
+            #ima_aligned[i,:,:,j]=np.real(ifft2(Gshift))
             print('Delta x, Delta y (pixels):',row_shift,col_shift)
+    #pf.movie2(ima[:,:,:,0],ima[:,:,:,0],'prueba.mp4',axis=0,fps=8)
 elif realign is False:
     ima=np.mean(ima,axis=0) #Sum all images over the series
-
 
 
 
@@ -148,20 +156,12 @@ if check_image is True:
     quit()
 
 
-if pdf.N != 128:
-    print('N in pd_functions is not 128.')
-    #quit()
-
-#if ima.shape[0]==1:
-#    ima=ima[0,:]
-
-
 """
 Preparation of PD
 """
-RHO,THETA=pdf.sampling2()
-ap=pdf.aperture(pdf.N,pdf.R,cobs=cobs)
-ima_array=pdf.scanning(ima,Lsiz=pdf.N,cut=cut)
+RHO,THETA=pdf.sampling2(N,R)
+ap=pdf.aperture(N,R,cobs=cobs)
+ima_array=pdf.scanning(ima,Lsiz=N,cut=cut)
 k_vec=np.arange(0,ima_array.shape[0])
 
 
@@ -193,18 +193,18 @@ def subpatch(k):
     """
     #Outputs of prepare_D
     if ima_array.shape[0]==0:#If no subfielding
-        Ok,gamma,wind,susf=pdf.prepare_PD(ima)
-    else: #If subfielding (pdf.N < data X/Y dimensions)
-        Ok,gamma,wind,susf=pdf.prepare_PD(ima_array[k,:,:,:])
+        Ok,gamma,_,_=pdf.prepare_PD(ima,nuc,N)
+    else: #If subfielding (N < data X/Y dimensions)
+        Ok,gamma,_,_=pdf.prepare_PD(ima_array[k,:,:,:],nuc,N)
 
     #Call to optimization function
     if optimization=='linear':
-        a=pdf.loop_opt(tol,Jmin,Jmax,w_cut,maxnorm,maxit,\
-        a0,a_d,RHO,THETA,ap,Ok,cut=cut,method=svd_meth,gamma=gamma,K=K)  
+        a=pdf.loop_opt(tol,Jmin,Jmax,w_cut,maxnorm,maxit,a0,a_d,\
+        RHO,THETA,ap,Ok,gamma,nuc,N,cut=cut,method=svd_meth,K=K)  
         
     elif optimization=='lbfgs':
         a=pdf.minimization(Jmin,Jmax,a0,a_d,RHO,THETA,ap,Ok,\
-        cut=cut,gamma=gamma,K=2,jac=True)
+        gamma,nuc,N,cut=cut,K=2,jac=True)
 
  
     """

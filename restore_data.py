@@ -61,7 +61,7 @@ if ext=='.npy':
     ima=ima[cam,wave,modul,:,:]
 else:
     ima=pdf.read_image(dir_folder+ffolder+'/'+fname,ext,
-                       norma='yes',N=2016)
+                       norma='yes')
 #Crop the image
 if crop==True:
     if ima.ndim==2:
@@ -93,6 +93,7 @@ times=['14:11:02',
 
 
 ima_aligned=sf.realign_subpixel(ima,accu=0.05)
+
 fig,axs=plt.subplots(1,2)
 axs[0].imshow(ima[:,:,0]-ima[:,:,1],cmap='gray')
 axs[1].imshow(ima[:,:,1]-ima_aligned[:,:,1],cmap='gray')

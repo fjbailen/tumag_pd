@@ -35,8 +35,10 @@ each one corresponding to each image (0 for the focused image)
 reconstruction purposes. Default values: reg1=0.02,reg2=1
 
 Changes with respect to pd_functions_v21
-We introduce a new merit function that takes into account a jitter term
+- We introduce a new merit function that takes into account a jitter term
 to be adjusted between two images: one with and another one without jitter.
+- Default parameters (N, R, nuc, etc.) are no longer set as default, but
+introduced by the user or computed within a function 
 """
 #from skimage.morphology import square, erosion
 from matplotlib import pyplot as plt
@@ -50,7 +52,6 @@ from astropy.convolution import convolve
 import numpy as np
 import zernike as zk
 import math_func2 as mf
-import plots_func2 as pf
 import sys
 import os
 import time
@@ -65,21 +66,29 @@ except:
 
 
 #TuMag parameters
-N=1600 #128#1480 #Number of pixels
-wvl=525.02e-9 #517.3e-9 #Wavelength [m]
-gamma1=1 #Gamma defined by Lofdahl and Scharmer 1994
-gamma2=0 #Gamma factor defined by Zhang 2017 to avoid divergence of "Q"
-fnum=60 # f-number
-Delta_x=11e-6#Delta_theta*(np.pi/180)*focal #Size of the pixel [m]
-nuc=1/(wvl*fnum) #Critical frequency (m^(-1))
-inc_nu=1/(N*Delta_x)
-R=(1/2)*nuc/inc_nu #Pupil radius [pixel]
-nuc=2*R #critical frequency (pixels)
-nuc-=1#1 or 2 #To avoid boundary zeros when calculating the OTF (Julian usa 1)
 
 
 
-def sampling(N=N):
+def tumag_params():
+    wvl=525.02e-9 #517.3e-9 #Wavelength [m]
+    fnum=60 # f-number
+    Delta_x=11e-6 ##Size of the pixel [m]
+    return wvl,fnum,Delta_x
+
+def compute_nuc(N,wvl,fnum,Delta_x):
+    """
+    This function computes the critical frequency (in pixel units)
+    for an image of size NxX. It returns also the pupil radius
+    (in pixel units)
+    """
+    nuc=1/(wvl*fnum) #Critical frequency (m^(-1))
+    inc_nu=1/(N*Delta_x)
+    R=(1/2)*nuc/inc_nu #Pupil radius [pixel]
+    nuc=2*R #critical frequency (pixels)
+    nuc-=1 #To avoid boundary zeros when calculating the OTF (Julian usa 1
+    return nuc,R
+
+def sampling(N):
     """
     This function creates a grid of points with NxN dimensions for calling the
     Zernike polinomials.
@@ -101,7 +110,7 @@ def sampling(N=N):
 
     return X,Y
 
-def sampling2(N=N,R=R):
+def sampling2(N,R):
     """
     It returns RHO and THETA with the sampling of the pupil carried out
     in fatima.py. RHO is already normalized to the unity.
@@ -118,7 +127,7 @@ def sampling2(N=N,R=R):
     THETA0[N//2-int(R):N//2+int(R),N//2-int(R):N//2+int(R)]=THETA
     return RHO0,THETA0
 
-def cir_aperture(R=R,N=N,ct=None):
+def cir_aperture(R,N,ct=None):
 
     #Offset to be subtracted to center the circle
     if ct==None:
@@ -140,13 +149,11 @@ def cir_aperture(R=R,N=N,ct=None):
 
 
 
-def pmask(nuc=nuc,N=N):
+def pmask(nuc,N):
     """
     Mask equal to 1 where cir_aperture is 0
     """
-    pmask=np.where(cir_aperture(R=nuc,N=N,ct=0)==0,1,0)
-    #pmask=1-cir_aperture(R=nuc,N=N)
-    #pmask=np.where(pmask<0,0,pmask)
+    pmask=np.where(cir_aperture(nuc,N,ct=0)==0,1,0)
     return pmask
 
 def aperture(N,R,cobs=0,spider=0):
@@ -165,7 +172,7 @@ def aperture(N,R,cobs=0,spider=0):
     Output:
         A: 2D array with 0s and 1s
     """
-    A=cir_aperture(R=R,N=N)
+    A=cir_aperture(R,N)
 
     #If central obscuration:
     if (cobs != 0):
@@ -257,7 +264,7 @@ def pupil(a,a_d,RHO,THETA,A):
     p=A*np.exp(1j*phi)
     return p
 
-def wavefront(a,a_d,RHO,THETA,A,R=R,N=N):
+def wavefront(a,a_d,RHO,THETA,A,R,N):
     """
     This function returns the wavefront map given a set of Zernike
     coefficients. It works similarly than pupil.py
@@ -309,7 +316,7 @@ def PSF(a,a_d,RHO,THETA,ap):
     return psf
 
 
-def OTF(a,a_d,RHO,THETA,ap,norm=None,nuc=nuc,N=N,K=2,tiptilt=False):
+def OTF(a,a_d,RHO,THETA,ap,norm=None,K=2,tiptilt=False):
     """
     This function calculates the OTFs of a circular aperture for  incident
     wavefronts with aberrations given by a set of Zernike coefficients.
@@ -369,7 +376,7 @@ def OTF(a,a_d,RHO,THETA,ap,norm=None,nuc=nuc,N=N,K=2,tiptilt=False):
                 norma[i]=1
     return otf,norma
 
-def OTF_jitt(sigma,norm=None,nuc=nuc,N=N):
+def OTF_jitt(sigma,nuc,N,norm=None):
     """
     This function computes the OTFs of jitter corresponding to a pair of images:
     one free of jitter and another one affected by it. It is based on the
@@ -423,7 +430,7 @@ def select_tiptilt(a,i,K):
     return a1
 
 
-def OTF_circular():
+def OTF_circular(nuc,N):
     """
     This function returns the analytical expression of the OTF of a circular
     aperture with no aberrations.
@@ -439,7 +446,7 @@ def OTF_circular():
     otfc=np.where(mask,otfc_in,otfc_out)
     return otfc
 
-def convPSF(I,a,a_d,RHO,THETA,ap,norm=None,nuc=nuc,N=N):
+def convPSF(I,a,a_d,RHO,THETA,ap,norm=None):
     """
     This function calculates the convolution of an image with the PSF
     of IMaX+. 'I' must be a Numpy array of type 'float64'
@@ -457,14 +464,14 @@ def convPSF(I,a,a_d,RHO,THETA,ap,norm=None,nuc=nuc,N=N):
     O=ifftshift(O)
 
     #Aberrated image
-    otf,norma=OTF(a,a_d,RHO,THETA,ap,norm=norm,nuc=nuc,N=N)
+    otf,norma=OTF(a,a_d,RHO,THETA,ap,norm=norm)
     D=O*otf
 
     d=ifftshift(D)
     d=ifft2(d).real
     return d
 
-def Zkfactor(k,Ok,Hk,Q,gamma=gamma1):
+def Zkfactor(k,Ok,Hk,Q,gamma):
     """
     Factor Zk defined in Paxman 1992 (eq. C6) needed to calculate
     the derivative of the merit function (eqs. C1-C5)
@@ -475,14 +482,14 @@ def Zkfactor(k,Ok,Hk,Q,gamma=gamma1):
     Output:
         Zk: 2D array with the Zk factor
     """
-    Qinver=Qinv(Hk,gamma=gamma)
+    Qinver=Qinv(Hk,gamma)
     sum1=Qinver**2*np.sum(Ok*np.conj(Hk),axis=2)*np.conj(Ok[:,:,k])
     sum2=np.abs(np.sum(Ok*np.conj(Hk),axis=2))**2*gamma[k]*np.conj(Hk[:,:,k])
     Zk=Q**4*(sum1-sum2)
     return Zk
 
 
-def Qfactor(Hk,gamma=gamma1,nuc=nuc,N=N,reg1=0.02,reg2=1):
+def Qfactor(Hk,gamma,nuc,N,reg1=0.02,reg2=1):
     """
     Q factor defined in Lofdahl and Scharmer 1994 for construction of the merit
     function
@@ -492,7 +499,7 @@ def Qfactor(Hk,gamma=gamma1,nuc=nuc,N=N,reg1=0.02,reg2=1):
         Q: 2D complex numpy array representing the Q factor
     """
     np.seterr(divide='ignore')
-    #For the effect of gamma2 (reg) to increase with the frequency in the way
+    #For the effect of the regularization to increase with the frequency in the way
     #described in Martinez Pillet (2011), Sect. 9.2)
     if reg1>0:
         nx=Hk.shape[0]
@@ -505,11 +512,11 @@ def Qfactor(Hk,gamma=gamma1,nuc=nuc,N=N,reg1=0.02,reg2=1):
         Q=1/np.sqrt(np.sum(gamma*np.abs(Hk)**2,axis=2)+reg1)
     
     Q=np.nan_to_num(Q, nan=0, posinf=0, neginf=0)
-    Q=Q*cir_aperture(R=nuc,N=N,ct=0)
+    Q=Q*cir_aperture(nuc,N,ct=0)
     return Q
 
 
-def Qinv(Hk,gamma=gamma1,nuc=nuc,N=N):
+def Qinv(Hk,gamma,nuc,N):
     """
     Inverse of Q. Defined for test purposes
     Input:
@@ -518,10 +525,10 @@ def Qinv(Hk,gamma=gamma1,nuc=nuc,N=N):
         Qinv:
     """
     Qinv=np.sqrt(np.sum(gamma*np.abs(Hk)**2,axis=2))
-    Qinv=Qinv*cir_aperture(R=nuc,N=N,ct=0)
+    Qinv=Qinv*cir_aperture(nuc,N,ct=0)
     return Qinv
 
-def Ffactor(Q,Ok,Hk,gamma=gamma1,nuc=nuc,N=N):
+def Ffactor(Q,Ok,Hk,gamma):
     """
     F factor defined by Lofdahl and Scharmer 1994 (Eq. 5) in the general
     form of Paxman 1992 (Eq. 19). Gamma is added, too.
@@ -544,7 +551,7 @@ def smooth_filt(array,size=3):
     return ndimage.uniform_filter(array, size=size)
 
 
-def noise_power(Of,filterfactor=1.5,nuc=nuc,N=N):
+def noise_power(Of,nuc,N,filterfactor=1.5):
     """
     Average level of noise power of the image. Based on Bonet's program
     'noise_level.pro'. Noise is calculated on 4 quadrants of the
@@ -553,7 +560,7 @@ def noise_power(Of,filterfactor=1.5,nuc=nuc,N=N):
     that appears because of the finite Nyquist frecuency of the detector.
     """
     #Circular obscuration mask to calculate the noise beyond the critical freq.
-    cir_obs=pmask(nuc=nuc,N=N)
+    cir_obs=pmask(nuc,N)
 
 
     #Calculation of noise
@@ -574,7 +581,7 @@ def noise_power(Of,filterfactor=1.5,nuc=nuc,N=N):
     power=filterfactor*power
     return power
 
-def filter_sch(Q,Ok,Hk,low_f=0.2,gamma=gamma1,nuc=nuc,N=N):
+def filter_sch(Q,Ok,Hk,gamma,nuc,N,low_f=0.2):
     """
     Filter of the Fourier transforms of the focused and defocused
     object (Eqs. 18-19 of Lofdahl & Scharmer 1994). Based on
@@ -586,10 +593,10 @@ def filter_sch(Q,Ok,Hk,low_f=0.2,gamma=gamma1,nuc=nuc,N=N):
     Output:
         filter:2D array (float64) with filter
     """
-    denom=np.abs(Ffactor(Q,Ok,Hk,gamma=gamma,nuc=nuc,N=N))**2\
-    *Qinv(Hk,gamma=gamma,nuc=nuc,N=N)**2
+    denom=np.abs(Ffactor(Q,Ok,Hk,gamma))**2\
+    *Qinv(Hk,gamma,nuc,N)**2
 
-    filter=noise_power(Ok[:,:,0],nuc=nuc,N=N)/smooth_filt(denom)
+    filter=noise_power(Ok[:,:,0],nuc,N)/smooth_filt(denom)
     filter=(filter+np.flip(filter))/2
     filter=1-filter
     filter=np.where(filter<low_f,0,filter)
@@ -599,7 +606,7 @@ def filter_sch(Q,Ok,Hk,low_f=0.2,gamma=gamma1,nuc=nuc,N=N):
 
     filter=median_filter(filter,size=9)
     filter=smooth_filt(filter)
-    filter=filter*cir_aperture(R=nuc,N=N,ct=0)
+    filter=filter*cir_aperture(nuc,N,ct=0)
     filter=np.nan_to_num(filter, nan=0, posinf=0, neginf=0)
 
     #Apply low_filter again to elliminate isolated peaks
@@ -640,7 +647,7 @@ def meritE(Ok,Hk,Q):
         E=Q*E
     return E
 
-def derivmerit(Ok,Hk,derHk,Q,gamma=gamma1,cut=None):
+def derivmerit(Ok,Hk,derHk,Q,gamma,cut=None):
     """
     Derivative of the merit function of Paxman 1992 (eq. C5)
     Input:
@@ -653,7 +660,7 @@ def derivmerit(Ok,Hk,derHk,Q,gamma=gamma1,cut=None):
 
     sumZkSk=np.zeros((Ok.shape[0],Ok.shape[1]),dtype='complex128') #Initialization of the sum
     for k in range(Ok.shape[2]):
-        sumZkSk+=Zkfactor(k,Ok,Hk,Q,gamma=gamma)*derHk[:,:,k]#1st term of eq. C5
+        sumZkSk+=Zkfactor(k,Ok,Hk,Q,gamma)*derHk[:,:,k]#1st term of eq. C5
 
 
     #Image domain
@@ -789,7 +796,7 @@ def derHj2(zj,p,norma):
         derivHj[:,:,i]=1j*(corr1_corr2)/norma[i]
     return derivHj
 
-def derEj(derHk,Ok,Hk,Q,norma,gamma=gamma1):
+def derEj(derHk,Ok,Hk,Q,gamma):
     """
     Derivative with respect to a_j of the Merit function 'E'
     for phase diversity optimization
@@ -809,16 +816,6 @@ def derEj(derHk,Ok,Hk,Q,norma,gamma=gamma1):
     """
     #Derivate of Q
     derQ=-Q**3*np.sum(gamma*np.real(np.conj(Hk)*derHk),axis=2)
-
-    #Derivative of Lofdahl error function
-    #derivE=Ok[:,:,1]*(Q*derHk[:,:,0]+derQ*Hk[:,:,0])\
-    #-Ok[:,:,0]*(Q*derHk[:,:,1]+derQ*Hk[:,:,1])
-
-    #Derivative of general error metric from Paxman merit function
-    #derivE=derQ*np.sum(Ok*np.conj(Hk),axis=2)+Q*np.sum(Ok*np.conj(derHk),axis=2)
-
-    #Derivative of the alternative error metric
-    #derivE=derQ*sumamerit(Ok,Hk)+Q*sumamerit(Ok,derHk)
 
     #Array containing the derivative of each error function
     if Ok.ndim==3:
@@ -885,7 +882,7 @@ def b_i(derivEi,E,cut=None):
     return bi.real
 
 def loop_opt(tol,Jmin,Jmax,w_cut,maxnorm,maxit,a0,a_d,RHO,THETA,ap,Ok,\
-disp=True,cut=None,method='svd',gamma=gamma1,nuc=nuc,N=N,ffolder='',K=2):
+gamma,nuc,N,disp=True,cut=None,method='svd',ffolder='',K=2,inst='tumag'):
     """
     Function that carries out the iterative loop for optimizing the aberration
     coefficients in the Phase Diversity process. It employs the focused and
@@ -935,6 +932,8 @@ disp=True,cut=None,method='svd',gamma=gamma1,nuc=nuc,N=N,ffolder='',K=2):
 
 
     #Reference defocus for comparing purposes
+    if inst=='tumag':
+        wvl,fnum,_=tumag_params()
     d0=8*wvl*(fnum)**2 #Defocus shift to achieve 1 lambda peak-to-valley WF error
     a_d0=np.pi*d0/(8*np.sqrt(3)*wvl*fnum**2) #Defocus coefficient [rads]
     tic=time.time()
@@ -977,12 +976,12 @@ disp=True,cut=None,method='svd',gamma=gamma1,nuc=nuc,N=N,ffolder='',K=2):
             print('\n')
             print('Iteration',it)
         #Focused and defocused OTFs
-        Hk,normhk=OTF(a,a_d,RHO,THETA,ap,tiptilt=tiptilt,norm=True,nuc=nuc,N=N,K=K) #Focused OTFs
+        Hk,normhk=OTF(a,a_d,RHO,THETA,ap,tiptilt=tiptilt,norm=True,K=K) #Focused OTFs
         norma=normhk[0] #Norm for correlations
 
         #Q factor, merit function and focused and defocused pupils
-        Q=Qfactor(Hk,gamma=gamma,nuc=nuc,N=N)
-        noise_filt=filter_sch(Q,Ok,Hk,gamma=gamma,nuc=nuc,N=N)
+        Q=Qfactor(Hk,gamma,nuc,N)
+        noise_filt=filter_sch(Q,Ok,Hk,gamma,nuc,N)
         Ok_filt=np.zeros((N,N,K),dtype='complex128')
         pk=np.zeros((N,N,K),dtype='complex128')
         for i in range(K):
@@ -1008,7 +1007,7 @@ disp=True,cut=None,method='svd',gamma=gamma1,nuc=nuc,N=N,ffolder='',K=2):
         for i in range(Jmin,Jmax):
             zi=zk.zernikej_Noll(i,RHO,THETA) #Starting from i=1 (offset)
             derHk_i=derHj2(zi,pk,normhk)
-            derivEi=derEj(derHk_i,Ok_filt,Hk,Q,norma,gamma=gamma)
+            derivEi=derEj(derHk_i,Ok_filt,Hk,Q,gamma)
             derivei=derej(derivEi)
             if Jmin==2: #To fit also individual tip/tilt terms
                 if i<4:
@@ -1027,7 +1026,7 @@ disp=True,cut=None,method='svd',gamma=gamma1,nuc=nuc,N=N,ffolder='',K=2):
                 else:
                     zj=zk.zernikej_Noll(j,RHO,THETA)
                     derHk_j=derHj2(zj,pk,normhk)
-                    derivEj=derEj(derHk_j,Ok_filt,Hk,Q,norma,gamma=gamma)
+                    derivEj=derEj(derHk_j,Ok_filt,Hk,Q,gamma)
                     derivej=derej(derivEj)
                 if Jmin==2:
                     if j<4: #Choose only tip tilts corresponding to the same pair of images
@@ -1127,7 +1126,6 @@ disp=True,cut=None,method='svd',gamma=gamma1,nuc=nuc,N=N,ffolder='',K=2):
             flabel.append('a%g'%(i+1))
 
     file=np.column_stack((flabel,file))
-    #filename='./txt/a_iteration_Jmax_%g_gamma2_%g.txt'%(Jmax,gamma2)
     try:
         os.mkdir('./txt/'+ffolder)
     except FileExistsError:
@@ -1143,7 +1141,7 @@ disp=True,cut=None,method='svd',gamma=gamma1,nuc=nuc,N=N,ffolder='',K=2):
 
 
 def minimization(Jmin,Jmax,a0,a_d,RHO,THETA,ap,Ok,\
-disp=True,cut=None,gamma=gamma1,nuc=nuc,N=N,ffolder='',K=2,jac=True):
+gamma,nuc,N,disp=True,cut=None,ffolder='',K=2,jac=True):
     """
     Function that optimizes the aberration
     coefficients in the Phase Diversity process with a non linear minimization
@@ -1153,12 +1151,12 @@ disp=True,cut=None,gamma=gamma1,nuc=nuc,N=N,ffolder='',K=2,jac=True):
 
 
     def merit_func(a):
-        Hk,normhk=OTF(a,a_d,RHO,THETA,ap,tiptilt=False,norm=True,nuc=nuc,N=N,K=K) #Focused OTFs
+        Hk,normhk=OTF(a,a_d,RHO,THETA,ap,tiptilt=False,norm=True,K=K) #Focused OTFs
         norma=normhk[0] #Norm for correlations
 
         #Q factor, merit function and focused and defocused pupils
-        Q=Qfactor(Hk,gamma=gamma,nuc=nuc,N=N)
-        noise_filt=filter_sch(Q,Ok,Hk,gamma=gamma,nuc=nuc,N=N)
+        Q=Qfactor(Hk,gamma,nuc,N)
+        noise_filt=filter_sch(Q,Ok,Hk,gamma,nuc,N)
         Ok_filt=np.zeros((N,N,K),dtype='complex128')
         #pk=np.zeros((N,N,K),dtype='complex128')
         for i in range(K):
@@ -1180,12 +1178,12 @@ disp=True,cut=None,gamma=gamma1,nuc=nuc,N=N,ffolder='',K=2,jac=True):
 
     def jac_L(a):
         b=np.zeros((Jmax-1,1),dtype='float64')
-        Hk,normhk=OTF(a,a_d,RHO,THETA,ap,tiptilt=False,norm=True,nuc=nuc,N=N,K=K) #Focused OTFs
+        Hk,normhk=OTF(a,a_d,RHO,THETA,ap,tiptilt=False,norm=True,K=K) #Focused OTFs
         norma=normhk[0] #Norm for correlations
 
         #Q factor, merit function and focused and defocused pupils
-        Q=Qfactor(Hk,gamma=gamma,nuc=nuc,N=N)
-        noise_filt=filter_sch(Q,Ok,Hk,gamma=gamma,nuc=nuc,N=N)
+        Q=Qfactor(Hk,gamma,nuc,N)
+        noise_filt=filter_sch(Q,Ok,Hk,gamma,nuc,N)
         Ok_filt=np.zeros((N,N,K),dtype='complex128')
         pk=np.zeros((N,N,K),dtype='complex128')
         for i in range(K):
@@ -1198,7 +1196,7 @@ disp=True,cut=None,gamma=gamma1,nuc=nuc,N=N,ffolder='',K=2,jac=True):
         for i in range(Jmin,Jmax):
             zi=zk.zernikej_Noll(i,RHO,THETA)
             derHk_i=derHj2(zi,pk,normhk)
-            derivEi=derEj(derHk_i,Ok_filt,Hk,Q,norma,gamma=gamma)
+            derivEi=derEj(derHk_i,Ok_filt,Hk,Q,gamma)
             derivei=derej(derivEi)
             b[i-1]=b_i(derivei,e,cut=cut)
         return 2*b
@@ -1215,7 +1213,7 @@ disp=True,cut=None,gamma=gamma1,nuc=nuc,N=N,ffolder='',K=2,jac=True):
     print(minim)
     return np.array([minim.x]).T #To return an array consisting of 1 column
 
-def minimization_jitter(Ok,cut=None,gamma=gamma1,nuc=nuc,N=N):
+def minimization_jitter(Ok,gamma,nuc,N,cut=None):
     """
     Function that optimizes the jitter term for a set of two images,
     one free from jitter and another one affected by it.
@@ -1224,11 +1222,11 @@ def minimization_jitter(Ok,cut=None,gamma=gamma1,nuc=nuc,N=N):
     """
     def merit_func(sigma):
         #OTFs for the jitter term
-        Hk_jitt,_=OTF_jitt(sigma,norm=None,nuc=nuc,N=N)
+        Hk_jitt,_=OTF_jitt(sigma,nuc,N,norm=None)
        
         #Q factor and noise filtering
-        Q=Qfactor(Hk_jitt,gamma=gamma,nuc=nuc,N=N,reg1=0,reg2=1)
-        noise_filt=filter_sch(Q,Ok,Hk_jitt,gamma=gamma,nuc=nuc,N=N)
+        Q=Qfactor(Hk_jitt,gamma,nuc,N,reg1=0,reg2=1)
+        noise_filt=filter_sch(Q,Ok,Hk_jitt,gamma,nuc,N)
         Ok_filt=np.zeros((N,N,2),dtype='complex128')
         for i in range(2):
             Ok_filt[:,:,i]=noise_filt*Ok[:,:,i] #Filtered FFT
@@ -1254,7 +1252,7 @@ def minimization_jitter(Ok,cut=None,gamma=gamma1,nuc=nuc,N=N):
     print(minim)
     return np.array([minim.x]).T #To return an array consisting of 1 column
 
-def read_image(file,ext,num_im=0,norma='yes',N=N):
+def read_image(file,ext,num_im=0,norma='yes'):
     """
     Function that opens an image and resizes it to fill the NxN detector
     """
@@ -1265,11 +1263,6 @@ def read_image(file,ext,num_im=0,norma='yes',N=N):
         s = readsav(file+ext)
         I = s.imagen
         I = np.array(I,dtype='float')
-        N2 = I.shape[1] #Number of pixels
-        if N>N2: #Repeat image to fill the detector
-            I = np.pad(I,(int((N-N2)/2),int((N-N2)/2)),'wrap')
-        else:
-            I = I[0:N,0:N]
         return I
     elif ext=='.fits':
         from astropy.io import fits
@@ -1281,6 +1274,7 @@ def read_image(file,ext,num_im=0,norma='yes',N=N):
         if data.ndim==3:
             if data.shape[1]==data.shape[2]:#Reorder axes and crop the image
                 data=np.moveaxis(data,0,-1)
+                N=data.shape[1]
                 xmax=data.shape[0]
                 xcen=int(xmax/2)
                 l2=int(N/2)
@@ -1347,14 +1341,13 @@ def read_image(file,ext,num_im=0,norma='yes',N=N):
         I=im.open(file+ext)
         #I=I.convert('L')
         I=np.array(I,dtype='float')
-        I=I[:N,:N,-1]
+        I=I[:,:,-1]
         if norma=='yes':
             I = I/np.mean(I)
         return I
     else:
         I=im.open(file+ext)
         I=I.convert('L') #Converts to black and white (not valid for np arrays)
-        I=I.resize((N,N)) #Number of pixels must match detector dimensions
         I=np.array(I,dtype='float') #Converts to numpy array for operation
                                     # purposes
         return I
@@ -1449,7 +1442,7 @@ def scanning(data,Lsiz=128,cut=29):
                     data_subpatch[kk,:,:,n]=data[x0:xf,y0:yf,n]
     return data_subpatch
 
-def prepare_PD(ima,nuc=nuc,N=N,wind=True,kappa=100):
+def prepare_PD(ima,nuc,N,wind=True,kappa=100):
     """
     This function calculates gamma for each subpatch, apodizes the subpatch
     and calculates the Fourier transform of the focused and defocused images
@@ -1469,7 +1462,7 @@ def prepare_PD(ima,nuc=nuc,N=N,wind=True,kappa=100):
     for i in range(1,Nima):
         #Fourier transforms of the images 
         Ok[:,:,i]=mf.fourier2(ima[:,:,i])
-        gamma[i]=noise_power(Of,nuc=nuc,N=N)/noise_power(Ok[:,:,i],nuc=nuc,N=N)
+        gamma[i]=noise_power(Of,nuc,N)/noise_power(Ok[:,:,i],nuc,N)
 
     #Normalization to get mean 0 and apodization
     per_apod=10 #Percentage of apodization
@@ -1508,44 +1501,9 @@ def prepare_PD(ima,nuc=nuc,N=N,wind=True,kappa=100):
     Ok[:,:,0]=fftshift(Of)
     return Ok, gamma, wind, susf
 
-def prepare_PD2(ima,nuc=nuc,N=N,wind=True):
-    """
-    This function apodizes each subpatch, calculates gamma AFTER apodization
-    and calculates the Fourier transform of the focused and defocused images
-    """
-    #Normalization to get mean 0 and apodization
-    if wind==True:
-        wind=apod(ima.shape[0],ima.shape[1],10) #Apodization of subframes
-    else:
-        wind=np.ones((ima.shape[0],ima.shape[1]))
-
-    #Focused image
-    susf=np.sum(wind*ima[:,:,0])/np.sum(wind)
-    of=(ima[:,:,0]-susf)*wind
-    Of=mf.fourier2(of)
-    Of=Of/(N**2)
-
-    #FFTs and gamma factors of each of the K images
-    Nima=ima.shape[2]
-    gamma=np.zeros(Nima)
-    Ok=np.zeros((ima.shape[0],ima.shape[1],Nima),dtype='complex128')
-
-    gamma[0]=1
-    Ok[:,:,0]=Of
-    for i in range(1,Nima):
-        susi=np.sum(wind*ima[:,:,i])/np.sum(wind)
-        imak=(ima[:,:,i]-susi)*wind
-
-        #Fourier transforms of the images and of the PSFs
-        Ok[:,:,i]=mf.fourier2(imak)
-        Ok[:,:,i]=Ok[:,:,i]/(N**2)
-
-        #We calculate gamma after apodizing the images
-        gamma[i]=noise_power(Of,nuc=nuc,N=N)/noise_power(Ok[:,:,i],nuc=nuc,N=N)
-    return Ok, gamma, wind, susf
 
 def object_estimate(ima,a,a_d,wind=True,cobs=0,cut=29,low_f=0.2,tiptilt=False,
-                    noise='default',reg1=0,reg2=1):
+                    noise='default',reg1=0,reg2=1,inst='tumag'):
     """
     This function restores an image or an array of images employing a given
     set of Zernike coefficients.
@@ -1567,23 +1525,23 @@ def object_estimate(ima,a,a_d,wind=True,cobs=0,cut=29,low_f=0.2,tiptilt=False,
             'prepare_PD'
         noise: 'default' to be computed as filt_scharmer. Otherwise, this variable
             should contain a 2x2 array with the filter.
+        inst: instrument for which we compute the parameters
+
     Output:
         object: restored image
         susf: offset defined in 'prepare_PD' 
         noise_filt: noise filter applied to deconvolve the images        
     """
     #Pupil sampling according to image size
+    if inst=='tumag':
+        wvl,fnum,Delta_x=tumag_params()
     N=ima.shape[0]
-    nuc=1/(wvl*fnum) #Critical frequency (m^(-1))
-    inc_nu=1/(N*Delta_x)
-    R=(1/2)*nuc/inc_nu #Pupil radius [pixel]
-    nuc=2*R #critical frequency (pixels)
-    nuc-=1
+    nuc,R=compute_nuc(N,wvl,fnum,Delta_x)
     ap=aperture(N,R,cobs=cobs)
-    RHO,THETA=sampling2(N=N,R=R)
+    RHO,THETA=sampling2(N,R)
 
     #Fourier transform images
-    Ok, gamma, wind, susf=prepare_PD(ima,nuc=nuc,N=N,wind=wind)
+    Ok, gamma, wind, susf=prepare_PD(ima,nuc,N,wind=wind)
 
     if isinstance(a_d, np.ndarray): #If a_d is an array...
         if a_d[0]==a_d[1]:#In this case, the 2nd image is a dummy image
@@ -1591,19 +1549,16 @@ def object_estimate(ima,a,a_d,wind=True,cobs=0,cut=29,low_f=0.2,tiptilt=False,
                 gamma=[1,0] #To account only for the 1st image
 
     #OTFs
-    Hk,_=OTF(a,a_d,RHO,THETA,ap,norm=True,nuc=nuc,K=Ok.shape[2],tiptilt=tiptilt)
+    Hk,_=OTF(a,a_d,RHO,THETA,ap,norm=True,K=Ok.shape[2],tiptilt=tiptilt)
 
     
     #Restoration
-    Q=Qfactor(Hk,gamma=gamma,nuc=nuc,N=N,reg1=reg1,reg2=reg2)
+    Q=Qfactor(Hk,gamma,nuc,N,reg1=reg1,reg2=reg2)
     
     if noise=='default':
-        noise_filt=filter_sch(Q,Ok,Hk,gamma=gamma,nuc=nuc,N=N,low_f=low_f)
+        noise_filt=filter_sch(Q,Ok,Hk,gamma,nuc,N,low_f=low_f)
     else:
         noise_filt=noise
-
-    #if gamma[1]==0 and N==1536: #For FDT images
-    #    noise_filt=noise_filt*cir_aperture(R=nuc-200,N=N,ct=0)
 
     Nima=Ok.shape[2]
     for i in range(0,Nima):
@@ -1619,7 +1574,7 @@ def object_estimate(ima,a,a_d,wind=True,cobs=0,cut=29,low_f=0.2,tiptilt=False,
             print('Optimized merit function (K=%g):'%Nima,L)
 
     #Restoration
-    O=Ffactor(Q,Ok,Hk,gamma=gamma,nuc=nuc,N=N)
+    O=Ffactor(Q,Ok,Hk,gamma)
 
     Oshift=np.fft.fftshift(O)
     o=np.fft.ifft2(Oshift)
@@ -1631,7 +1586,7 @@ def object_estimate(ima,a,a_d,wind=True,cobs=0,cut=29,low_f=0.2,tiptilt=False,
 
 
 def object_estimate_jitter(ima,sigma,a,a_d,cobs=0,wind=True,low_f=0.2,
-                    tiptilt=False,noise='default',reg1=0,reg2=1):
+                    tiptilt=False,noise='default',reg1=0,reg2=1,inst='tumag'):
     """
     This function restores the OTF part of a jittered image.
     Inputs:
@@ -1645,23 +1600,22 @@ def object_estimate_jitter(ima,sigma,a,a_d,cobs=0,wind=True,low_f=0.2,
         low_f: low limit of the noise filter, as defined in 'filter_sch'         
         noise: 'default' to be computed as filt_scharmer. Otherwise, this variable
             should contain a 2x2 array with the filter.
+        inst: instrument for which we compute the parameters
     Output:
         object: restored image
         susf: offset defined in 'prepare_PD' 
         noise_filt: noise filter applied to deconvolve the images        
     """
     #Sampling according to image size
+    if inst=='tumag':
+        wvl,fnum,Delta_x=tumag_params()
     N=ima.shape[0]
-    nuc=1/(wvl*fnum) #Critical frequency (m^(-1))
-    inc_nu=1/(N*Delta_x)
-    R=(1/2)*nuc/inc_nu #Pupil radius [pixel]
-    nuc=2*R #critical frequency (pixels)
-    nuc-=1
+    nuc,R=compute_nuc(N,wvl,fnum,Delta_x)
     ap=aperture(N,R,cobs=cobs)
-    RHO,THETA=sampling2(N=N,R=R)
+    RHO,THETA=sampling2(N,R)
 
     #Fourier transform images
-    Ok, gamma, wind, susf=prepare_PD(ima,nuc=nuc,N=N,wind=wind)
+    Ok, gamma, wind, susf=prepare_PD(ima,nuc,N,wind=wind)
     
     #Set gamma[1] to zero, as we do want to reconstruct only the first imag
     if isinstance(a_d, np.ndarray): #If a_d is an array...
@@ -1670,11 +1624,11 @@ def object_estimate_jitter(ima,sigma,a,a_d,cobs=0,wind=True,low_f=0.2,
                 gamma=[1,0] #To account only for the 1st image
     
     #Jitter OTF
-    Hk_jitt,_=OTF_jitt(sigma,norm=False,nuc=nuc,N=N)
+    Hk_jitt,_=OTF_jitt(sigma,nuc,N,norm=False)
     Hk_jitt[:,:,0]=Hk_jitt[:,:,1] #To employ the OTF of the jittered image
 
     #Aberration OTF
-    Hk_aberr,_=OTF(a,a_d,RHO,THETA,ap,norm=True,nuc=nuc,K=Ok.shape[2],tiptilt=tiptilt)
+    Hk_aberr,_=OTF(a,a_d,RHO,THETA,ap,norm=True,K=Ok.shape[2],tiptilt=tiptilt)
  
 
     #Total OTF
@@ -1686,16 +1640,16 @@ def object_estimate_jitter(ima,sigma,a,a_d,cobs=0,wind=True,low_f=0.2,
             Hk[:,:,i]=Hk_jitt[:,:,i]*Hk_aberr[:,:,i]
     
     #Restoration
-    Q=Qfactor(Hk,gamma=gamma,nuc=nuc,N=N,reg1=reg1,reg2=reg2)
+    Q=Qfactor(Hk,gamma,nuc,N,reg1=reg1,reg2=reg2)
     
     if noise=='default':
         if np.all(sigma==0):
-            noise_filt=filter_sch(Q,Ok,Hk,gamma=gamma,nuc=nuc,N=N,low_f=low_f)
+            noise_filt=filter_sch(Q,Ok,Hk,gamma,nuc,N,low_f=low_f)
         else:
             #If we have jitter, we reduce the cut-off frequency to avoid
             #spurious artifacts close to the Nyquist frequency
             nuc2=int(0.5*nuc)
-            noise_filt=filter_sch(Q,Ok,Hk,gamma=gamma,nuc=nuc2,N=N,low_f=low_f)  
+            noise_filt=filter_sch(Q,Ok,Hk,gamma,nuc2,N,low_f=low_f)  
     else:
         noise_filt=noise
 
@@ -1705,7 +1659,7 @@ def object_estimate_jitter(ima,sigma,a,a_d,cobs=0,wind=True,low_f=0.2,
         Ok[:,:,i]=noise_filt*Ok[:,:,i]
 
     #Restoration
-    O=Ffactor(Q,Ok,Hk,gamma=gamma,nuc=nuc,N=N)
+    O=Ffactor(Q,Ok,Hk,gamma)
 
     Oshift=np.fft.fftshift(O)
     o=np.fft.ifft2(Oshift)
@@ -1741,28 +1695,6 @@ def MTF_ideal(x):
     MTF=2/np.pi*(np.arccos(x)-x*np.sqrt(1-x**2))
     return MTF
 
-def phi_step(telescope,mode):
-    if telescope=='HRT':
-        defoc=0.499950
-        if mode=='fine':
-            wvl_step=defoc/2204*133 #0.0302
-        elif mode=='coarse':
-            wvl_step=defoc/2204*1300 #0.295
-        elif mode=='PD':
-            wvl_step=defoc
-        elif mode=='PD_new':
-            wvl_step=defoc
-    elif telescope=='FDT':
-        defoc=0.998859
-        if mode=='fine':
-            wvl_step=defoc/527*20 #0.0379
-        elif mode=='coarse':
-            wvl_step=defoc/527*105 #0.199
-        elif mode=='PD':
-            wvl_step=defoc
-        elif mode=='PD_new':
-            wvl_step=defoc
-    return wvl_step
 
 def open_dark(path,header):
     I=fits.open(path)
@@ -1802,110 +1734,6 @@ def open_flat(path,header):
     flat = flat[PXBEG2:PXEND2 + 1, PXBEG1:PXEND1 + 1]
     return flat
 
-def region_and_wcut(mode,refocus,window=''):
-    """
-    Select region of the images and cut-off value for
-    SVD depending on mode ('FDT' or 'HRT'), refocus
-    approach ('fine','coarse','PD','PD_new') and the observation
-    window (e.g., 'STP-136','PHI-5'...)
-
-    PD_new refers to PD date with 5 different focus positions
-    """
-
-    if mode=='FDT':
-        if refocus=='fine':
-            x0c=0 #Initial pixel for the subframing of the data
-            xfc=600 #Size of the input synthetic data to be subframed
-            y0c=x0c
-            yfc=xfc
-            w_cut=0.08 #Cut-off for singular values (fraction of the maximum)
-        elif refocus=='coarse':
-            w_cut=0.02
-            #w_cut=0.00375
-            x0c=770 #to focus spot region.Initial X coordinate
-            xfc=898 #to focus spot region. Final X coordinate
-            y0c=920
-            yfc=1048
-        elif refocus=='PD':
-            w_cut=0.02#0.08
-            x0c=0
-            xfc=-1
-            y0c=x0c
-            yfc=xfc
-        elif refocus=='PD_new':
-            w_cut=0.02
-            x0c=975
-            xfc=1175
-            y0c=725
-            yfc=925
-    elif mode=='HRT':
-        if refocus=='PD' or refocus=='PD_new':
-            #w_cut=0.02
-            if window=='STP-250':
-                w_cut=0.005
-                x0c=800#int((2048/2)-Deltax)
-                xfc=1100#int((2048/2)+Deltax)
-                y0c=x0c
-                yfc=xfc
-            elif window=='STP-279/0.2931 au' or window=='STP-279/0.2934 au' or\
-                window=='STP-279/0.3020 au':
-                w_cut=0.02
-                x0c=800#int((2048/2)-Deltax)
-                xfc=1100#int((2048/2)+Deltax)
-                y0c=x0c
-                yfc=xfc 
-            elif window=='STP-229/0.497 au':
-                w_cut=0.02
-                #x0c=700
-                #xfc=1000
-                #y0c=1400
-                #yfc=1700
-                x0c=650#925
-                xfc=x0c+300#1225
-                y0c=800#750
-                yfc=y0c+300#1050
-            elif window=='STP-227/0.314 au':
-                w_cut=0.02
-                x0c=725
-                xfc=1025
-                y0c=1050
-                yfc=1350
-            elif window=='STP-227/0.323 au':
-                w_cut=0.02
-                x0c=925
-                xfc=1225
-                y0c=975
-                yfc=1275
-            elif window=='STP-228/0.333 au' or window=='STP-228/0.344 au' or\
-             window=='STP-228/0.355 au' or window=='STP-228/0.368 au' or\
-             window=='STP-228/0.380 au' or window=='STP-228/0.393 au' or\
-             window=='STP-228/0.407 au' or window=='STP-228/0.421 au' or\
-             window=='STP-229/0.454 au':
-                w_cut=0.02
-                x0c=925
-                xfc=1225
-                y0c=1050
-                yfc=1350
-            elif window=='STP-230':
-                w_cut=0.02
-                x0c=925
-                xfc=1225
-                y0c=1050
-                yfc=1350
-            else:
-                w_cut=0.005
-                Deltax=int(750/2)#210
-                x0c=350#int((2048/2)-Deltax)
-                xfc=1800#int((2048/2)+Deltax)
-                y0c=x0c
-                yfc=xfc
-        else:
-            x0c=0
-            xfc=420
-            y0c=x0c
-            yfc=xfc
-            w_cut=0.02 #0.02, 0.025 or 0.05
-    return x0c,xfc,y0c,yfc,w_cut
 
 def defocus_array(refocus,stp,Nima,foc_index,index_pos):
     """
@@ -1987,19 +1815,8 @@ def power_radial(ima):
     power_radial=radial_profile(power,[xp0,xp0])
     return power_radial
 
-def compute_nuc(N):
-    """
-    This function computes the critical frequency (in pixel units)
-    for an image of size NxX. It returns also the pupil radius
-    (in pixel units)
-    """
-    nuc=1/(wvl*fnum) #Critical frequency (m^(-1))
-    inc_nu=1/(N*Delta_x)
-    R=(1/2)*nuc/inc_nu #Pupil radius [pixel]
-    nuc=2*R #critical frequency (pixels)
-    return nuc,R
 
-def retrieve_aberr(k_max,Jmax,cobs,txtfolder):
+def retrieve_aberr(N,R,k_max,Jmax,cobs,txtfolder):
     """
     Function that retrieves the average of the Zernike coeeficients saved in the
     txt files of a given directory.
@@ -2010,9 +1827,6 @@ def retrieve_aberr(k_max,Jmax,cobs,txtfolder):
         txtfolder: Path of the txt files
     """
     av=np.zeros((Jmax-1,k_max))
-    RHO,THETA=sampling2()
-    ap=aperture(N,R,cobs=cobs)
-
     for k in range(k_max):
         """
         Results after optimization files
@@ -2030,8 +1844,6 @@ def retrieve_aberr(k_max,Jmax,cobs,txtfolder):
         a=np.concatenate((np.array([0,0,0]),a)) #First three are offset and tiptilt
         av[:,k]=a
 
-        #Wavefront
-        wavef=wavefront(a,0,RHO,THETA,ap)
 
 
     #Find optimizations for which a=0 and delete them
@@ -2042,7 +1854,6 @@ def retrieve_aberr(k_max,Jmax,cobs,txtfolder):
     a_aver=np.mean(av,axis=1)
     norm_aver=2*np.pi/np.linalg.norm(a_aver)
     print('WFE RMS:lambda/',np.round(norm_aver,2))
-    #wavef_aver=wavefront(a_aver,0,RHO,THETA,ap)
     return a_aver
 
 def padding(ima):
@@ -2062,7 +1873,7 @@ def padding(ima):
 
 def restore_ima(ima,zernikes,pd=0,low_f=0.2,reg1=0.05,reg2=1,cobs=32.4):
     """
-    This function restores a 2D image using a given set of Zernike 
+    This function restores a 2D or a 3D image using a given set of Zernike 
     coefficients and a modified Wiener filter that includes a 
     regularization in the denominator of the type reg1*(nu/nuc)**reg2
     Input:
