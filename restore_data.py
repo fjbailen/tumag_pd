@@ -62,6 +62,8 @@ if ext=='.npy':
 else:
     ima=pdf.read_image(dir_folder+ffolder+'/'+fname,ext,
                        norma='yes')
+
+
 #Crop the image
 if crop==True:
     if ima.ndim==2:
@@ -74,9 +76,8 @@ if crop==True:
 
 
 
-"""
-ima=ima[:,0,x0:xf,y0:yf]
-contrast=100*np.std(ima[:,:500,:500],axis=(1,2))/np.mean(ima[:,:500,:500],axis=(1,2))
+
+contrast=100*np.std(ima[:,:,:],axis=(0,1))/np.mean(ima[:,:,:],axis=(0,1))
 times=['14:11:02',
        '14:11:32',
        '14:12:01',
@@ -87,9 +88,17 @@ times=['14:11:02',
        '14:14:28',
        '14:14:58',
        '14:15:27']
+contrast_susi=np.array([28.36,28.48,28.78,28.74,28.72,28.39,28.20,28.40,
+               28.75,28.76])
 #times = [dt.datetime.strptime(d,'%H:%M:%S') for d in times]
 #pf.movie(ima,'series_jitter_2024_07_14.mp4',fps=3,axis=0,titles=times)
-"""
+
+fig,axs=plt.subplots()
+axs.scatter(contrast_susi,contrast,marker='o')
+axs.set_xlabel('SUSI contrast (%)')
+axs.set_ylabel('TuMag contrast (%)')
+plt.show()
+quit()
 
 
 ima_aligned=sf.realign_subpixel(ima,accu=0.05)

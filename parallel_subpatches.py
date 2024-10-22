@@ -12,14 +12,14 @@ from matplotlib import pyplot as plt
 from scipy.fftpack import fftshift, ifftshift, fft2, ifft2
 import shift_func as sf
 import plots_func2 as pf
-
+plt.rcParams["image.interpolation"] = 'none'
 
 
 """
 Input parameters
 """
 check_image=False
-realign=True #Realign focused-defocused image with pixel accuracy?
+realign=False #Realign focused-defocused image with pixel accuracy?
 N=300 #Dimension of the subpatches to run PD on
 cobs=32.4 #18.5 (MPS) 32.4 (Sunrise) #Diameter of central obscuration as a percentage of the aperture
 n_cores=16 #Number of cores of the PC to be employed for parallelization
@@ -103,8 +103,9 @@ if ima.ndim==4:
     ima=np.moveaxis(ima,0,-1)
     ima=ima[:Nima,:] #Select Nima pair of images
     ima=np.flip(ima,axis=-1) #Invert the focused and defocused index
+    norm_factor=np.mean(ima[0,:,:,0])
     for i in range(Nima):
-        ima[i,:]=ima[i,:]/np.mean(ima[0,:,:,0]) #Normalize by the mean of the focused image
+        ima[i,:]=ima[i,:]/norm_factor #Normalize by the mean of the focused image
 
     
 #print(ima.shape)
@@ -114,6 +115,7 @@ if ima.ndim==4:
 
 #Realign images of the series
 #ima_aligned=0*ima
+#ima_aligned[0,:,:,:]=ima[0,:,:,:]
 if realign is True:
     kappa=20
     for j in range(2):

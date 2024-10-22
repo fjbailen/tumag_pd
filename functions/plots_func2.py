@@ -2,6 +2,7 @@ from matplotlib import pyplot as plt
 import pd_functions_v21 as pdf
 import numpy as np
 from matplotlib.animation import FFMpegWriter, FuncAnimation
+plt.rcParams["image.interpolation"] = 'none'
 #plt.rcParams['animation.ffmpeg_path']='C://Program Files/ffmpeg-20190312-d227ed5-win64-static/ffmpeg-20190312-d227ed5-win64-static/bin/ffmpeg'
 
 def logplot2(I,sing=True,color=None,low=None,high=None,fourier=True):
@@ -99,6 +100,7 @@ def movie2(im1,im2,filename,axis=2,fps=15,title=['',''],cmap='gray'):
     max2=np.max(im2[:,:,:])
     min=np.min((min1,min2))
     max=np.max((max1,max2))
+    print('Colorbar limits:',min,max)
     #To use colorbars
     if axis==2:
         axs[0].imshow(im1[:,:,0],cmap=cmap,vmin=min,vmax=max)
