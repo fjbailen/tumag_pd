@@ -69,8 +69,14 @@ except:
 
 
 
-def tumag_params():
-    wvl=525.02e-9 #517.3e-9 #Wavelength [m]
+def tumag_params(pref='52502'):
+    #Wavelength [m]
+    if pref=='52502':
+        wvl=525.02e-9 
+    elif pref=='52506':
+        wvl=525.06e-9 
+    elif pref=='517':
+        wvl=517.3e-9        
     fnum=60 # f-number
     Delta_x=11e-6 ##Size of the pixel [m]
     return wvl,fnum,Delta_x

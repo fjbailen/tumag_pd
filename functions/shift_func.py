@@ -410,3 +410,24 @@ def realign_subpixel(ima,accu=0.05):
         print('Shift of image',j,':',row_shift,col_shift)
         ima_aligned[:,:,j]=np.real(ifft2(Gshift))
     return ima_aligned
+
+def subpixel_shift(F,deltax,deltay):
+    """
+    Shift an image 'f' by a certain amount (deltax, deltay)
+    with subpixel accuracy
+    Input:
+        F: fft of image 'f' without applying any fftshift
+        deltax, deltay: subpixel shifts of the image
+    Output:
+
+    """
+    nr,nc=np.shape(F)
+    Nr=np.fft.ifftshift(np.arange(-np.fix(nr/2),np.ceil(nr/2)))
+    Nc=np.fft.ifftshift(np.arange(-np.fix(nc/2),np.ceil(nc/2)))
+    
+    row_shift=deltay
+    col_shift=deltax
+
+    Nc,Nr=np.meshgrid(Nc,Nr)
+    Fshift=F*np.exp(1j*2*np.pi*(-row_shift*Nr/nr-col_shift*Nc/nc))
+    return Fshift    

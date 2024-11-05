@@ -23,15 +23,16 @@ realign=False #Realign focused-defocused image with pixel accuracy?
 N=300 #Dimension of the subpatches to run PD on
 cobs=32.4 #18.5 (MPS) 32.4 (Sunrise) #Diameter of central obscuration as a percentage of the aperture
 n_cores=16 #Number of cores of the PC to be employed for parallelization
-wvl,fnum,Delta_x=pdf.tumag_params()
+pref='517' #'517', '52502' or '52506'. Prefilter employed
+wvl,fnum,Delta_x=pdf.tumag_params(pref=pref)
 nuc,R=pdf.compute_nuc(N,wvl,fnum,Delta_x)
 
 #Path and name of the FITS file containing the focused and defocused images
 cam=0 #Cam 0 or cam 1
-Nima=39 #Number of images in the series
+Nima=1 #Number of images in the series
 dir_folder='./' #Path of the folder containing the FITS file
-ffolder='Flight/15_7_20_02' #Name of the folder containing th FITS file
-fname='PD_15_7_20_02_cam_%g_ima_%g'%(cam,Nima) #Name of the FITS file
+ffolder='Flight/13_7_11_42' #Name of the folder containing th FITS file
+fname='PD_13_7_11_42_cam_%g_%g_ima_%g'%(cam,int(pref),Nima) #Name of the FITS file
 ext='.fits' #Format of the images to be opened (FITS)
 output=fname+'/' #Name of output folder to save txt files
 optimization='linear' #'linear' (SVD) or 'lbfgs'

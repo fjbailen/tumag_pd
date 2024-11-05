@@ -24,14 +24,16 @@ check_image=False
 realign=True
 crop=True #If True, it crops the image using x0, xf, y0 and yf as limits
 cobs=32.4 #Diameter of the central obscuration as a fraction of the primary mirror 
+pref='52502' #'517', '52502' or '52506'. Prefilter employed
 
 #Region to be subframed
-ind1=5 #Image free from jitter
-ind2=6 #Image affected by jitter
+ind1=7 #Image free from jitter
+ind2=8 #Image affected by jitter
 x0=200#400 #Initial pixel of the subframe in X direction
-xf=x0+ 1600#900 #Final pixel of the subframe in X direction
+xf=x0+ 600#1600#900 #Final pixel of the subframe in X direction
 y0=x0 #Initial pixel of the subframe in Y direction
 yf=xf  #FInal pixel of the subframe in Y direction
+N=xf-x0 #Dimension of the image
 
 #Path and name of the FITS file containing the focused and defocused images
 ext='.fits' #Format of the images to be opened (FITS)
@@ -44,7 +46,9 @@ txtfolder=dir_folder +'txt/PD_10_7_16_34_cam_0_52502_ima_1/svd' #Path of the txt
 cam=0 #0 or 1. Camera index
 wave=0 #From 0 to 10. Wavelength index
 modul=0 #From 0 to 4. Modulation index
-cut=int(0.15*pdf.N)#29#int(0.1*pdf.N) #None#Subframing crop to avoid edges
+wvl,fnum,Delta_x=pdf.tumag_params(pref=pref)
+nuc,R=pdf.compute_nuc(N,wvl,fnum,Delta_x)
+cut=int(0.15*N) #29 #None#Subframing crop to avoid edges
 
 
 """
@@ -55,7 +59,7 @@ if ext=='.npy':
     ima=ima[cam,wave,modul,:,:]
 else:
     ima=pdf.read_image(dir_folder+ffolder+'/'+fname,ext,
-                       norma='yes',N=2016)
+                       norma='yes')
 
 if crop==True:
     if ima.ndim==2:
@@ -115,8 +119,8 @@ if check_image is True:
 Preparation of PD
 """
 
-Ok,gamma,wind,susf=pdf.prepare_PD(ima)
-sigma=pdf.minimization_jitter(Ok,cut=cut)
+Ok,gamma,wind,susf=pdf.prepare_PD(ima,nuc,N)
+sigma=pdf.minimization_jitter(Ok,gamma,nuc,N,cut=cut)
 print('Sigma:',sigma)
 a=np.array([0,0,0,0])
 a_d=[0,0]

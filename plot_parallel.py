@@ -15,6 +15,7 @@ Imports and plots the set of Zernike coefficients and
 the wavefront map over the different subfields.
 """
 N=300 #Dimension of the subpatches to run PD on
+pref='517' #'517', '52502' or '52506'. Prefilter employed 
 realign=False #Realign focused-defocused image with pixel accuracy?
 Nima=1 #39 #Number of images in the series to be considered
 cam=0 #Cam index: 0 or 1
@@ -24,15 +25,14 @@ reg2=1 #Regularization parameter for the restoration
 cobs=32.4 #18.5 (MPS) 32.4 (Sunrise) #Diameter of central obscuration as a percentage of the aperture
 Jmax=22# 16 or 22.Maximum index of the zernike polynomials
 Jmin=4 #Minimum index of the zernike polynomials
-wvl,fnum,Delta_x=pdf.tumag_params()
+wvl,fnum,Delta_x=pdf.tumag_params(pref=pref)
 nuc,R=pdf.compute_nuc(N,wvl,fnum,Delta_x)
 if wvl==517.3e-9:
     dmin=-1.51107 #Defocus in wavelength units 
-elif wvl==525.02e-9:
+elif wvl==525.02e-9 or wvl==525.06e-9:
     dmin=-1.489
 dmax=dmin+0.05 #Maximum defocus in wavelength units
 deltad=0.1 #Step of the defocus (>dmax-dmin if there is only one value of the defocus)
-#N0=400 #Size of the focused/defocused images in the FITS file
 magnif=2.47 #Magnification factor of TuMag
 
 #Region to be subframed
@@ -45,9 +45,9 @@ yf=y0+900  #FInal pixel of the subframe in Y direction
 #Path and name of the FITS file containing the focused and defocused images
 ext='.fits' #Format of the images to be opened (FITS)
 dir_folder='./' #Path of the folder containing the FITS file
-ffolder='Flight/10_7_16_34' #Name of the folder containing th FITS file
-fname='PD_10_7_16_34_cam_0_52502_ima_1'#'PD_15_7_20_02_cam_%g_ima_%g'%(cam,Nima) #Name of the FITS file
-txtfolder=dir_folder +'txt'+ '/' + fname +'/svd' #Path of the txt files
+ffolder='Flight/13_7_11_42' #Name of the folder containing th FITS file
+fname='PD_13_7_11_42_cam_%g_%g_ima_%g'%(cam,int(pref),Nima) #Name of the FITS file
+txtfolder=dir_folder +'txt'+ '/' + fname #Path of the txt files
 
 #Colormap limits for wavefront representation
 Npl=3 #Number of subplots in horizontal and vertical direction of main plot
@@ -166,6 +166,7 @@ for k in k_vec:
 
         #Zernike coefficients, original subframes and wavefront
         axs[n,m].plot(range(Jmin,Jmax),a[(Jmin-1):]/(2*np.pi),marker='.',label='k%.3g'%k,color='k')
+        axs[n,m].set_ylim([-0.2,0.2])
         axs2[n,m].imshow(ima_array[k,:,:,0],cmap='gray')
         axs2[n,m].set_xticks([])
         axs2[n,m].set_yticks([])
