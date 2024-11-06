@@ -419,7 +419,7 @@ def subpixel_shift(F,deltax,deltay):
         F: fft of image 'f' without applying any fftshift
         deltax, deltay: subpixel shifts of the image
     Output:
-
+        fshift: shifted version of 'f'
     """
     nr,nc=np.shape(F)
     Nr=np.fft.ifftshift(np.arange(-np.fix(nr/2),np.ceil(nr/2)))
@@ -429,5 +429,6 @@ def subpixel_shift(F,deltax,deltay):
     col_shift=deltax
 
     Nc,Nr=np.meshgrid(Nc,Nr)
-    Fshift=F*np.exp(1j*2*np.pi*(-row_shift*Nr/nr-col_shift*Nc/nc))
-    return Fshift    
+    Fshift=F*np.exp(1j*2*np.pi*(row_shift*Nr/nr+col_shift*Nc/nc))
+    fshift=ifft2(Fshift).real
+    return fshift    

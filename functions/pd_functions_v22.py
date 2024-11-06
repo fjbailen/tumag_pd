@@ -388,11 +388,10 @@ def OTF_jitt(sigma,nuc,N,norm=None):
     one free of jitter and another one affected by it. It is based on the
     model of Fiete 2014 (Eq. 19)
     Input:
-        sigma: vector with the rms of jitter in x,y and its correlation
-            (sigma_x,sigma_y,sigma_xy)
-            
+        sigma: vector with the rms of jitter in x,y (in arcsec)
+                and its correlation (sigma_x,sigma_y,sigma_xy)
         norm:{None,True}, optional. 'True' for normalization purpose. Default
-         is None
+                is None
         
     Output:
         otf: 2D complex array representing the OTFs of the image free of
@@ -471,6 +470,8 @@ def convPSF(I,a,a_d,RHO,THETA,ap,norm=None):
 
     #Aberrated image
     otf,norma=OTF(a,a_d,RHO,THETA,ap,norm=norm)
+    otf=otf[:,:,0]
+
     D=O*otf
 
     d=ifftshift(D)
@@ -1225,6 +1226,16 @@ def minimization_jitter(Ok,gamma,nuc,N,cut=None):
     one free from jitter and another one affected by it.
     We do not take into account derivatives of the OTF.
     The image free from jitter must be the one at index 0.
+
+    Inputs:
+        Ok: output of 'prepare_PD'. Consists of an array with
+            the FFT of the images. The first index
+            must correspond to the 'jitter-free' image.
+        gamma: output of "prepare_PD". Level of noise among images.
+        nuc: critical frequency of the telescope (computed at the beginning
+            of this module)
+        N: size of each PD image
+
     """
     def merit_func(sigma):
         #OTFs for the jitter term
@@ -1471,7 +1482,7 @@ def prepare_PD(ima,nuc,N,wind=True,kappa=100):
         gamma[i]=noise_power(Of,nuc,N)/noise_power(Ok[:,:,i],nuc,N)
 
     #Normalization to get mean 0 and apodization
-    per_apod=10 #Percentage of apodization
+    per_apod=12.5 #Percentage of apodization
     if wind==True:
         wind=apod(ima.shape[0],ima.shape[1],per_apod) #Apodization of subframes
     else:
@@ -1654,7 +1665,7 @@ def object_estimate_jitter(ima,sigma,a,a_d,cobs=0,wind=True,low_f=0.2,
         else:
             #If we have jitter, we reduce the cut-off frequency to avoid
             #spurious artifacts close to the Nyquist frequency
-            nuc2=int(0.5*nuc)
+            nuc2=int(nuc)#int(0.5*nuc)
             noise_filt=filter_sch(Q,Ok,Hk,gamma,nuc2,N,low_f=low_f)  
     else:
         noise_filt=noise
@@ -1875,7 +1886,7 @@ def padding(ima):
             ima_pad[:,:,i]=np.pad(ima[:,:,i], pad_width=((pad_width, pad_width), (pad_width, pad_width)), mode='symmetric')  
     elif ima.ndim==2:
         ima_pad=np.pad(ima, pad_width=((pad_width, pad_width), (pad_width, pad_width)), mode='symmetric')
-    return ima_pad
+    return ima_pad,pad_width
 
 def restore_ima(ima,zernikes,pd=0,low_f=0.2,reg1=0.05,reg2=1,cobs=32.4):
     """
@@ -1897,8 +1908,8 @@ def restore_ima(ima,zernikes,pd=0,low_f=0.2,reg1=0.05,reg2=1,cobs=32.4):
         noise_filt: noise filter employed for the restoration
     """
     #Image padding to reduce edge effects
-    ima_pad=padding(ima)
-    cut=int(0.1*ima_pad.shape[0]) #To later select the non-padded region
+    ima_pad,pad_width=padding(ima)
+    cut=pad_width #To later select the non-padded region
 
     #If we select only one image of the series
     ima_rest,_,noise_filt=object_estimate(ima_pad,zernikes,pd,

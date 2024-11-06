@@ -48,7 +48,7 @@ wave=0 #From 0 to 10. Wavelength index
 modul=0 #From 0 to 4. Modulation index
 wvl,fnum,Delta_x=pdf.tumag_params(pref=pref)
 nuc,R=pdf.compute_nuc(N,wvl,fnum,Delta_x)
-cut=int(0.15*N) #29 #None#Subframing crop to avoid edges
+cut=int(0.1*N) #29 #None#Subframing crop to avoid edges
 
 
 """
@@ -127,21 +127,15 @@ a_d=[0,0]
 
 
 #Pad image to reconstruct
-size=ima.shape[0]
-pad_width = int(size*10/(100-10*2))
-ima_pad = np.zeros((size+pad_width*2,size+pad_width*2,2))
-for i in range(2):
-    ima_pad[:,:,i]=np.pad(ima[:,:,i,], pad_width=((pad_width, pad_width), (pad_width, pad_width)), mode='symmetric')  
+ima_pad,pad_width=pdf.padding(ima)
 
 #Reconstruction
-cut=int(0.1*ima_pad.shape[0]) #Select only the non-padded region
-
 o_plot,_,noise_filt=pdf.object_estimate_jitter(ima_pad,
                 sigma,a,a_d,cobs=cobs,low_f=0.2,
-                wind=True,reg1=0.05,reg2=1)
+                wind=True,reg1=0.2,reg2=1)
 
 
-o_plot=o_plot[cut:-cut,cut:-cut]
+o_plot=o_plot[pad_width:-pad_width,pad_width:-pad_width]
 contrast_rest=np.round(100*np.std(o_plot)/np.mean(o_plot),1)
 contrast0=np.round(100*np.std(ima[:,:,1])/np.mean(ima[:,:,1]),1)
 
