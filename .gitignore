@@ -3,4 +3,7 @@
 /Kiruna
 /MPS
 *.fits
+*.mp4
+*.npy
+*.npz
 /txt
