@@ -58,6 +58,8 @@ import time
 import scipy
 import shift_func as sf
 from astropy.io import fits
+from tqdm import tqdm
+from matplotlib.colors import LogNorm
 try:
     import pyfftw
     flag_pyfftw=1
@@ -382,7 +384,7 @@ def OTF(a,a_d,RHO,THETA,ap,norm=None,K=2,tiptilt=False):
                 norma[i]=1
     return otf,norma
 
-def OTF_jitt(sigma,nuc,N,norm=None):
+def OTF_jitt(sigma,plate_scale,N,norm=None):
     """
     This function computes the OTFs of jitter corresponding to a pair of images:
     one free of jitter and another one affected by it. It is based on the
@@ -390,6 +392,7 @@ def OTF_jitt(sigma,nuc,N,norm=None):
     Input:
         sigma: vector with the rms of jitter in x,y (in arcsec)
                 and its correlation (sigma_x,sigma_y,sigma_xy)
+        plate_scale: plate scale in arcsec/pixel
         norm:{None,True}, optional. 'True' for normalization purpose. Default
                 is None
         
@@ -400,8 +403,7 @@ def OTF_jitt(sigma,nuc,N,norm=None):
 
     """
     #Meshgrid with frequency coordinates
-    delta_theta=0.0378 #Plate scale in arcseconds (arcsec/pixel)
-    nu_lim=1/(2*delta_theta) 
+    nu_lim=1/(2*plate_scale) 
     nu_vec=np.linspace(-nu_lim,nu_lim,int(N)+1) #Odd number of samples to center the stray-light OTF
     NU,ETA=np.meshgrid(nu_vec,nu_vec)
     NU=NU[:-1,:-1] #To have again an even number of samples
@@ -462,7 +464,7 @@ def convPSF(I,a,a_d,RHO,THETA,ap,norm=None):
         d: real 2D numpy array representing the convolution of I and the system
     """
     if I.dtype != 'float64':
-        print(I.dtype,'Error: I must be a Numpy array of type float64')
+        print(I.dtype,'Error in convPSF: I must be a Numpy array of type float64')
         sys.exit()
     #Fourier transform of the image
     O=fft2(I)
@@ -569,7 +571,6 @@ def noise_power(Of,nuc,N,filterfactor=1.5):
     #Circular obscuration mask to calculate the noise beyond the critical freq.
     cir_obs=pmask(nuc,N)
 
-
     #Calculation of noise
     #power=np.sum(np.abs(Of)**2*cir_obs)/np.sum(cir_obs)
 
@@ -584,9 +585,28 @@ def noise_power(Of,nuc,N,filterfactor=1.5):
      #4th quadrant
     power+=np.sum((np.abs(Of)**2*cir_obs)[x3:N,x3:N])/np.sum(cir_obs[x3:N,x3:N])
 
+    #Average power over the four quadrants
+    power=power/4
+
     #To obtain a more conservative filter in filter_sch
     power=filterfactor*power
     return power
+
+def noise_rms(ima):
+    """
+    Computes the rms of noise in a noisy region by computing the mean
+    power of the signal beyond the critical frequency
+    """
+    wvl,fnum,Delta_x=tumag_params()
+    N=ima.shape[0]
+    nuc,_=compute_nuc(N,wvl,fnum,Delta_x)
+
+    Of=fft2(ima)
+    Of=Of/(N**2)
+    Of=fftshift(Of)
+    power=noise_power(Of,nuc,N,filterfactor=1)
+    sigma=np.sqrt(power*N**2)
+    return sigma
 
 def filter_sch(Q,Ok,Hk,gamma,nuc,N,low_f=0.2):
     """
@@ -1220,7 +1240,7 @@ gamma,nuc,N,disp=True,cut=None,ffolder='',K=2,jac=True):
     print(minim)
     return np.array([minim.x]).T #To return an array consisting of 1 column
 
-def minimization_jitter(Ok,gamma,nuc,N,cut=None):
+def minimization_jitter(Ok,gamma,plate_scale,nuc,N,cut=None):
     """
     Function that optimizes the jitter term for a set of two images,
     one free from jitter and another one affected by it.
@@ -1232,6 +1252,7 @@ def minimization_jitter(Ok,gamma,nuc,N,cut=None):
             the FFT of the images. The first index
             must correspond to the 'jitter-free' image.
         gamma: output of "prepare_PD". Level of noise among images.
+        plate_scale: plate scale in arcsec/pixel
         nuc: critical frequency of the telescope (computed at the beginning
             of this module)
         N: size of each PD image
@@ -1239,7 +1260,7 @@ def minimization_jitter(Ok,gamma,nuc,N,cut=None):
     """
     def merit_func(sigma):
         #OTFs for the jitter term
-        Hk_jitt,_=OTF_jitt(sigma,nuc,N,norm=None)
+        Hk_jitt,_=OTF_jitt(sigma,plate_scale,N,norm=None)
        
         #Q factor and noise filtering
         Q=Qfactor(Hk_jitt,gamma,nuc,N,reg1=0,reg2=1)
@@ -1260,7 +1281,7 @@ def minimization_jitter(Ok,gamma,nuc,N,cut=None):
         return L
 
 
-    meth='Nelder-Mead'#'L-BFGS-B' #'Nelder-Mead'
+    meth='Nelder-Mead'#'L-BFGS-B' or 'Nelder-Mead'
     #opt={'ftol':1e-9,'gtol':1e-8}#
     #opt={'ftol':1e-11,'gtol':1e-10}
     opt={'ftol':1e-15,'gtol':1e-14}
@@ -1281,12 +1302,15 @@ def read_image(file,ext,num_im=0,norma='yes'):
         I = s.imagen
         I = np.array(I,dtype='float')
         return I
+    elif ext=='.npz':
+        I=np.load(file+ext)
+        print('Files contained in .npz:',I.files)
+        data=I['map'] 
+        return data
     elif ext=='.fits':
         from astropy.io import fits
         I=fits.open(file+ext)
         data = I[0].data
-
-
         #If first dimension corresponds to focused and defocused images
         if data.ndim==3:
             if data.shape[1]==data.shape[2]:#Reorder axes and crop the image
@@ -1492,7 +1516,6 @@ def prepare_PD(ima,nuc,N,wind=True,kappa=100):
     susf=np.sum(wind*ima[:,:,0])/np.sum(wind)
     of=(ima[:,:,0]-susf)*wind
 
-    plt.close()
     #Of=mf.fourier2(of)
     Of=fft2(of)
     Of=Of/(N**2)
@@ -1560,6 +1583,7 @@ def object_estimate(ima,a,a_d,wind=True,cobs=0,cut=29,low_f=0.2,tiptilt=False,
     #Fourier transform images
     Ok, gamma, wind, susf=prepare_PD(ima,nuc,N,wind=wind)
 
+
     if isinstance(a_d, np.ndarray): #If a_d is an array...
         if a_d[0]==a_d[1]:#In this case, the 2nd image is a dummy image
             if a_d[0]==0:
@@ -1592,7 +1616,6 @@ def object_estimate(ima,a,a_d,wind=True,cobs=0,cut=29,low_f=0.2,tiptilt=False,
 
     #Restoration
     O=Ffactor(Q,Ok,Hk,gamma)
-
     Oshift=np.fft.fftshift(O)
     o=np.fft.ifft2(Oshift)
     #o=np.fft.fftshift(o)
@@ -1602,8 +1625,9 @@ def object_estimate(ima,a,a_d,wind=True,cobs=0,cut=29,low_f=0.2,tiptilt=False,
 
 
 
-def object_estimate_jitter(ima,sigma,a,a_d,cobs=0,wind=True,low_f=0.2,
-                    tiptilt=False,noise='default',reg1=0,reg2=1,inst='tumag'):
+def object_estimate_jitter(ima,sigma,a,a_d,cobs=0,wind=True,
+                           low_f=0.2,tiptilt=False,noise='default',
+                           reg1=0,reg2=1,inst='tumag'):
     """
     This function restores the OTF part of a jittered image.
     Inputs:
@@ -1625,6 +1649,10 @@ def object_estimate_jitter(ima,sigma,a,a_d,cobs=0,wind=True,low_f=0.2,
     """
     #Sampling according to image size
     if inst=='tumag':
+        plate_scale=0.0378 #Plate scale in arcseconds (arcsec/pixel)
+        wvl,fnum,Delta_x=tumag_params()
+    elif inst=='imax':
+        plate_scale=0.055
         wvl,fnum,Delta_x=tumag_params()
     N=ima.shape[0]
     nuc,R=compute_nuc(N,wvl,fnum,Delta_x)
@@ -1641,7 +1669,7 @@ def object_estimate_jitter(ima,sigma,a,a_d,cobs=0,wind=True,low_f=0.2,
                 gamma=[1,0] #To account only for the 1st image
     
     #Jitter OTF
-    Hk_jitt,_=OTF_jitt(sigma,nuc,N,norm=False)
+    Hk_jitt,_=OTF_jitt(sigma,plate_scale,N,norm=False)
     Hk_jitt[:,:,0]=Hk_jitt[:,:,1] #To employ the OTF of the jittered image
 
     #Aberration OTF
@@ -1825,7 +1853,11 @@ def radial_profile(data, center):
 
 def power_radial(ima):
     """
-    Radial power of a 2D image
+    Radial power of a 2D image. 
+    If we want to see the steep drop in frequency
+    on the restored image, we must compute the radial power
+    on the Fourier transform of the restored image computed in object_estimate,
+    before applying the IFFT to obtain the restored image in spatial domain.  
     """
     power=np.abs(mf.fourier2(ima)/(ima.shape[0])**2)**2
     xp0=int(ima.shape[0]/2)
@@ -1833,7 +1865,7 @@ def power_radial(ima):
     return power_radial
 
 
-def retrieve_aberr(N,R,k_max,Jmax,cobs,txtfolder):
+def retrieve_aberr(k_max,Jmax,txtfolder):
     """
     Function that retrieves the average of the Zernike coeeficients saved in the
     txt files of a given directory.
@@ -1888,7 +1920,8 @@ def padding(ima):
         ima_pad=np.pad(ima, pad_width=((pad_width, pad_width), (pad_width, pad_width)), mode='symmetric')
     return ima_pad,pad_width
 
-def restore_ima(ima,zernikes,pd=0,low_f=0.2,reg1=0.05,reg2=1,cobs=32.4):
+def restore_ima(ima,zernikes,pd=0,low_f=0.2,noise='default',reg1=0.05,
+                reg2=1,cobs=32.4):
     """
     This function restores a 2D or a 3D image using a given set of Zernike 
     coefficients and a modified Wiener filter that includes a 
@@ -1900,6 +1933,8 @@ def restore_ima(ima,zernikes,pd=0,low_f=0.2,reg1=0.05,reg2=1,cobs=32.4):
             following Noll's 1979 rule
         pd: phase diversity between the images in case ima is a 3D array
         low_f: lower threshold of the optimum (Wiener's) filter
+        noise: 'default' to be computed as filt_scharmer. Otherwise, this variable
+            should contain a 2x2 array with the filter.
         reg1: 1st parameter of regularization term
         reg2: 2nd parameter of the regularization term 
         cobs: percentage of the central obscuration
@@ -1912,8 +1947,37 @@ def restore_ima(ima,zernikes,pd=0,low_f=0.2,reg1=0.05,reg2=1,cobs=32.4):
     cut=pad_width #To later select the non-padded region
 
     #If we select only one image of the series
-    ima_rest,_,noise_filt=object_estimate(ima_pad,zernikes,pd,
-                                                wind=True,cobs=cobs,cut=cut,
-                                                low_f=low_f,reg1=reg1,reg2=reg2)
+    ima_rest,_,noise_filt=object_estimate(ima_pad,zernikes,pd,wind=True,
+                                          cobs=cobs,cut=cut,low_f=low_f,
+                                          noise=noise,reg1=reg1,reg2=reg2)
     ima_rest=ima_rest[cut:-cut,cut:-cut]
     return ima_rest, noise_filt
+
+def simulate_jitter(ima,sigmax,sigmay,plate_scale,Nacc):
+    """
+    Simulate jitter in an accumulated image as the sum of Nacc
+    individual images with a shift that follows a Gaussian distribution
+    over directions X and Y.
+    Inputs:
+        ima: image to which we apply a given jitter 
+        sigmax, sigmay: rms of the jitter (in arcsec)
+        plate_scale: plate scale of the instrument (arcsec/pixel)
+        Nacc: number of accumulated images that are shifted
+    Output:
+        ima_shift: jittered image
+        rms_x, rms_y: rms of the effective jitter (closer to sigmax and sigmay
+            as Nacc increases)
+    """
+    IMA=fft2(ima) #FFT of the image to be "jittered"
+    ima_shift=0*ima #Initialize "jittered" image
+    x=np.random.normal(0, sigmax/plate_scale,Nacc) #shift in pixel units
+    y=np.random.normal(0, sigmay/plate_scale,Nacc) #shift in pixel units
+    rms_x=np.round(np.std(x)*plate_scale,4) #rms in arcsec
+    rms_y=np.round(np.std(y)*plate_scale,4) #rms in arcsec
+
+    print('Computing the jittered image')
+    #We add individual shifted images to simulate jitter
+    for i in tqdm(range(Nacc)):
+        ima_shift+=sf.subpixel_shift(IMA,x[i],y[i])
+    ima_shift=ima_shift/Nacc
+    return ima_shift,rms_x,rms_y

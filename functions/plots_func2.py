@@ -2,6 +2,7 @@ from matplotlib import pyplot as plt
 import pd_functions_v21 as pdf
 import numpy as np
 from matplotlib.animation import FFMpegWriter, FuncAnimation
+from scipy.stats import gaussian_kde
 plt.rcParams["image.interpolation"] = 'none'
 #plt.rcParams['animation.ffmpeg_path']='C://Program Files/ffmpeg-20190312-d227ed5-win64-static/ffmpeg-20190312-d227ed5-win64-static/bin/ffmpeg'
 
@@ -197,3 +198,22 @@ def movie3(im1,im2,filename,axis=2,fps=15,title=['',''],cmap='gray'):
     ani = FuncAnimation(fig, animate, frames=n, repeat=False)
     ani.save('./'+filename, writer=writer)
     plt.close()    
+
+def plot_scatter_density(x,y,xlabel='',ylabel=''):
+    """
+    Plots a scatter
+    """
+    # Calculate the point density
+    xy = np.vstack([x,y])
+    z = gaussian_kde(xy)(xy)
+
+    # Sort the points by density, so that the densest points are plotted last
+    idx = z.argsort()
+    x, y, z = x[idx], y[idx], z[idx]
+
+    _, ax = plt.subplots()
+    ax.scatter(x, y, c=z, s=50)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    plt.show()
+    return

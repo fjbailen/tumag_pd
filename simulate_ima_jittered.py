@@ -1,5 +1,5 @@
 """
-This function read an MHD simulation and simulates the presence of jitter
+This function reads an MHD simulation and simulates the presence of jitter
 of a given amplitude.
 """
 from PIL import Image as im
@@ -20,49 +20,45 @@ plt.rcParams['figure.constrained_layout.use'] = True #For the layout to be as ti
 #Parameters of input data
 SNR=0 #Signal-to-noise ratio. 0 if no noise is to be applied
 cobs=32.4 #Diameter of central obscuration as a percentage of the aperture
-N=288 #Number of pixels of the image
-plate_scale=0.0378 #Plate scale in arcseconds (arcsec/pixel)
-sigmax=2 #RMS of jitter along X direction (px)
-sigmay=2 #RMS of jitter along X direction (px)
+#N=288 #Number of pixels of the image (MHD simulation)
+N=256 #Number of pixels (Cadence simulatin)
+plate_scale=0.055 #Plate scale of the simulations in arcseconds (arcsec/pixel)
+sigmax=0.15 #RMS of jitter along X direction (px)
+sigmay=0.15 #RMS of jitter along X direction (px)
 Nacc=1000 #Number of accumulated images
 pref='52502' #'517', '52502' or '52506'. Prefilter employed
 wvl,fnum,Delta_x=pdf.tumag_params(pref=pref)
 nuc,R=pdf.compute_nuc(N,wvl,fnum,Delta_x)
+RHO,THETA=pdf.sampling2(N,R) 
+ap=pdf.aperture(N,R,cobs=cobs)
+aberr=np.zeros(4) #Aberrations of the instrument
 
 """
 Read image
 """
-file='./continuo'
+#file='./continuo' #MHD simulation
+file='./map_1s-cadence' #Cadence simulation
 output='./results/'
-ext='.sav'
+#ext='.sav' #MHD simulation
+ext='.npz' #Cadence simulation
 ima0=pdf.read_image(file,ext)
+ima0=ima0[:N,:N,0]
+ima0=ima0/np.mean(ima0[:256,:256]) #Normalize only by QS mean intensity
+ima0=ima0.astype('float64')
 
 
 
 """
 Simulate the image affected by jitter with sigmax and sigmay
 """
-#Apply subpixel shift folowing a normal distribution with sigmax and sigmay
-IMA=fft2(ima0)
-ima_shift=0*ima0
-x=np.random.normal(0, sigmax,Nacc)
-y=np.random.normal(0, sigmay,Nacc)
-rms_x=np.round(np.std(x),4)
-rms_y=np.round(np.std(y),4)
-
-print('Computing the jittered image')
-for i in tqdm(range(Nacc)):
-    ima_shift+=sf.subpixel_shift(IMA,x[i],y[i])
-ima_shift=ima_shift/Nacc
-
+ima_shift,rms_x,rms_y=pdf.simulate_jitter(ima0,sigmax,sigmay,
+                                          plate_scale,Nacc)
 
 
 """
 Apply the telescope diffraction
 """
-RHO,THETA=pdf.sampling2(N,R)
-ap=pdf.aperture(N,R,cobs=cobs)
-aberr=np.zeros(4)
+
 ima=pdf.convPSF(ima0,aberr,0,RHO,THETA,ap,norm=True)
 ima_shift=pdf.convPSF(ima_shift,aberr,0,RHO,THETA,ap,norm=True)
 if SNR>0:
@@ -85,15 +81,15 @@ Infer the jitter
 """
 cut=int(0.1*N)
 Ok,gamma,wind,susf=pdf.prepare_PD(ima_array,nuc,N)
-sigma=pdf.minimization_jitter(Ok,gamma,nuc,N,cut=cut)
-print('Sigma (arcsec):',sigma)
-print('Sigma (px units):',sigma/plate_scale)
-print('True sigma (px units):',rms_x,rms_y)
+sigma=pdf.minimization_jitter(Ok,gamma,plate_scale,nuc,N,cut=cut)
+print('Sigma (arcsec):\n',sigma)
+#print('Sigma (px units):',sigma/plate_scale)
+print('True sigma (arcsec):',rms_x,rms_y)
 
 ima_pad,pad_width=pdf.padding(ima_array)
 o_plot,_,noise_filt=pdf.object_estimate_jitter(ima_pad,
                 sigma,aberr,[0,0],cobs=cobs,low_f=0.2,
-                wind=True,reg1=0.05,reg2=1)
+                wind=True,reg1=0.05,reg2=1,inst='imax')
 o_plot=o_plot[pad_width:-pad_width,pad_width:-pad_width]
 
 """

@@ -15,7 +15,7 @@ Imports and plots the set of Zernike coefficients and
 the wavefront map over the different subfields.
 """
 N=300 #Dimension of the subpatches to run PD on
-pref='517' #'517', '52502' or '52506'. Prefilter employed 
+pref='52506' #'517', '52502' or '52506'. Prefilter employed 
 realign=False #Realign focused-defocused image with pixel accuracy?
 Nima=1 #39 #Number of images in the series to be considered
 cam=0 #Cam index: 0 or 1
@@ -295,7 +295,7 @@ fig7,ax7=plt.subplots()
 ax7.imshow(noise_filt)
 ax7.set_title('Noise filter')
 
-#Radial power
+#Radial power. 
 fig9,axs9=plt.subplots()
 power_radial_recons=pdf.power_radial(o_plot)
 power_radial_of0=pdf.power_radial(of0)
@@ -304,6 +304,8 @@ radius=np.arange(power_radial_recons.shape[0])/nuc
 axs9.semilogy(radius,power_radial_of0,label='Original')
 axs9.semilogy(radius,power_radial_recons,label='Restored')
 axs9.set_title('Radial power')
+axs9.set_ylabel('Power amplitud (a.u.)')
+axs9.set_xlabel(r'$\nu/\nu_c$')
 axs9.legend()
 
 plt.show()

@@ -46,6 +46,7 @@ txtfolder=dir_folder +'txt/PD_10_7_16_34_cam_0_52502_ima_1/svd' #Path of the txt
 cam=0 #0 or 1. Camera index
 wave=0 #From 0 to 10. Wavelength index
 modul=0 #From 0 to 4. Modulation index
+plate_scale=0.0378 #Plate scale in arcseconds (arcsec/pixel)
 wvl,fnum,Delta_x=pdf.tumag_params(pref=pref)
 nuc,R=pdf.compute_nuc(N,wvl,fnum,Delta_x)
 cut=int(0.1*N) #29 #None#Subframing crop to avoid edges
@@ -120,7 +121,7 @@ Preparation of PD
 """
 
 Ok,gamma,wind,susf=pdf.prepare_PD(ima,nuc,N)
-sigma=pdf.minimization_jitter(Ok,gamma,nuc,N,cut=cut)
+sigma=pdf.minimization_jitter(Ok,gamma,plate_scale,nuc,N,cut=cut)
 print('Sigma:',sigma)
 a=np.array([0,0,0,0])
 a_d=[0,0]
