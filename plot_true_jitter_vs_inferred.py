@@ -20,9 +20,10 @@ plt.rcParams['figure.constrained_layout.use'] = True #For the layout to be as ti
 
 #Parameters of input data
 Nsigma=1000
-SNR=0
+SNR=100
+folder='./Flight/Jitter/Simulations'
 file="true_jitter_vs_inferred_Njit_%g_SNR_%g.npy"%(Nsigma,SNR)
-rms=np.load("true_jitter_vs_inferred_Njit_%g_SNR_%g.npy"%(Nsigma,SNR))
+rms=np.load(folder+'/'+file)
 rms_true=rms[:,0]
 rms_inferred=rms[:,1]
 

@@ -14,6 +14,7 @@ from scipy.fftpack import fftshift, ifftshift, fft2, ifft2
 import shift_func as sf
 import plots_func2 as pf
 import math_func2 as mf
+plt.rcParams['figure.constrained_layout.use'] = True #For the layout to be as tight as possible
 
 
 

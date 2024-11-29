@@ -41,7 +41,19 @@ ap=pdf.aperture(N,R,cobs=cobs)
 PSF=pdf.PSF(zernikes,0,RHO,THETA,ap)
 PSF=PSF/np.max(PSF) #Normalization
 
+#Radial PSF
+xp0=int(PSF.shape[0]/2)
+PSF_rad=pdf.radial_profile(PSF,[xp0,xp0])
+
+
 #Plot in log scale
-plt.imshow(PSF,norm=colors.LogNorm(vmin=1e-10))
-plt.colorbar()
+fig,ax=plt.subplots()
+im=ax.imshow(PSF,norm=colors.LogNorm(vmin=1e-10))
+fig.colorbar(im)
+
+#Plot of radial PSF
+fig,ax=plt.subplots()
+ax.plot(PSF_rad)
+ax.set_ylabel('PSF amplitude (a.u.)')
+ax.set_xlabel('Radius (px)')
 plt.show()
