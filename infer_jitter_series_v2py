@@ -1,0 +1,201 @@
+"""
+This program is a second version of infer_jitter_series.
+It computes jitter along a series of images that
+are already restored from their WFE. It finds
+the image with the highest contrast and corrects
+the previous and next one. It uses those images
+to correct the previous and next images to those and
+repeats this process until the whole series is corrected
+"""
+import sys
+sys.path.append('./functions')
+from matplotlib import pyplot as plt
+from matplotlib.ticker import MultipleLocator
+import datetime as dt
+import numpy as np
+import math_func2 as mf
+import pd_functions_v22 as pdf
+import plots_func2 as pf
+from scipy.fftpack import fftshift, ifftshift, fft2, ifft2
+import shift_func as sf
+plt.rcParams['figure.constrained_layout.use'] = True
+
+
+"""
+Imports and plots the set of Zernike coefficients and
+the wavefront map over the different subfields.
+"""
+ind1=0#0 #First index of the series#
+ind2=10 #15#10 #Last index of the series
+k_max=9 #Number of txt files employed to average the wavefront
+low_f=0.2 #Cutoff of the Wiener filter
+reg1=0.05 #0.02 #Regularization factor used when computing Q
+reg2=1 #Regularization factor used when computing Q
+cobs=32.4 #18.5 (MPS) 32.4 (Sunrise) #Diameter of central obscuration as a percentage of the aperture
+Jmax=22# 16 or 22.Maximum index of the zernike polynomials
+Jmin=4 #Minimum index of the zernike polynomials
+magnif=2.47 #Magnification factor of TuMag
+plate_scale= 0.0378 #Plate scale in arcseconds (arcsec/pixel)
+fps=3 #Number of frames per second for the movie
+
+#Region to be subframed
+crop=True #If True, it crops the image using x0, xf, y0 and yf as limits
+x0=200 #200 or 400 #Initial pixel of the subframe in X direction
+xf=x0+1600 #900 or 1600 #Final pixel of the subframe in X direction
+y0=x0 #Initial pixel of the subframe in Y direction
+yf=xf  #FInal pixel of the subframe in Y direction
+
+#Path and name of the FITS file containing the focused and defocused images
+ext='.fits' #Format of the images to be opened (FITS)
+dir_folder='./' #Path of the folder containing the FITS file
+ffolder='Flight/Jitter/FS_1_2024_07_14' #Name of the folder containing th FITS file
+pref='52502' #Prefilter employed
+fname='series_jitter_2024_07_14'#'series_jitter_2024_07_14_wfe_corrected #Data file
+ext='.fits'#'.npy' #Extention of the data file
+txtfolder=dir_folder +'txt/PD_10_7_16_34_cam_0_52502_ima_1/svd' #Path of the txt files
+moviename='Icont_jitter_'+fname+'.mp4'#Name of the movie to be saved
+cam=0 #0 or 1. Camera index
+wave=0 #From 0 to 10. Wavelength index
+modul=0 #From 0 to 4. Modulation index
+
+
+
+"""
+Read image
+"""
+if ext=='.npy':
+    ima=np.load(dir_folder+ffolder+'/'+fname+ext)
+    #ima=ima[cam,wave,modul,:,:]
+else:
+    ima=pdf.read_image(dir_folder+ffolder+'/'+fname,ext,
+                       norma='yes')
+
+
+#Crop the image
+if crop==True:
+    if ima.ndim==2:
+        ima=ima[x0:xf,y0:yf]
+    elif ima.ndim==3:
+        ima=ima[x0:xf,y0:yf,:]
+    elif ima.ndim==4:
+        ima=ima[:,0,x0:xf,y0:yf] #Select first modulation
+        ima=np.moveaxis(ima,0,-1) #Move image index to last index
+        ima=ima/np.mean(ima[:200,:200,0])#Normalize images to continuum
+
+
+"""
+Find image with highest contrast
+"""
+contrast=np.zeros(ind2-ind1)
+for i in range(ind1,ind2):
+    contrast[i]=np.std(ima[:,:,i])/np.mean(ima[:,:,i])
+
+i_max=np.argmax(contrast)
+print('Image with highest contrast:',i_max)
+
+#Colormap limits for other plots
+vmin=np.min(ima[:,:,i_max])
+vmax=np.max(ima[:,:,i_max])
+
+
+"""
+Restoration with average Zernike coefficients
+"""
+a_aver=np.array([0,0,0,0])#pdf.retrieve_aberr(k_max,Jmax,txtfolder)
+a_d=0 #For pdf.object_estimate to restore a single image
+
+
+#System parameters
+N=ima.shape[0]
+wvl,fnum,Delta_x=pdf.tumag_params(pref=pref)
+nuc,R=pdf.compute_nuc(N,wvl,fnum,Delta_x)
+
+
+#Image padding for restoring purposes
+ima_pad,pad_width=pdf.padding(ima)
+cut=pad_width#To later select the non-padded region
+
+
+# Correct from jitter if several images of the series is analyzed
+if ind2>ind1:
+    sigma_vec=np.zeros((ind2-ind1,3))
+    ima_series=ima.copy()
+    ima_series[:,:,i_max]=ima[:,:,i_max]
+
+    #Restore from i_max to ind2
+   
+    for i in range(i_max,ind2-1):
+        print('-----------------')
+        print('Image index %g'%i)
+        print('-----------------')
+        ima_jitt=ima_series[:,:,(i,i+1)]
+           
+    
+        #Realign the chosen pair of images
+        kappa=20
+        F0=fft2(ima_jitt[:,:,0])
+        print('Re-aligning pair of images (%g,%g)'%(i,i+1))  
+        F_comp=fft2(ima_jitt[:,:,1])
+        error,row_shift,col_shift,Gshift=sf.dftreg(F0,F_comp,kappa)
+        deltax=int(np.round(row_shift))
+        deltay=int(np.round(col_shift))
+        ima_jitt[:,:,1]=np.roll(ima_jitt[:,:,1],(deltax,deltay),axis=(0,1))
+        print('Delta x, Delta y:',row_shift,col_shift)    
+        
+    
+        #Compute jitter 
+        Ok,gamma,wind,susf=pdf.prepare_PD(ima_jitt,nuc,N)
+        sigma=pdf.minimization_jitter(Ok,gamma,plate_scale,nuc,N,
+                                          cut=int(0.15*N))  
+        sigma_vec[i+1,:]=sigma
+        print('Sigma:',sigma)  
+
+        #Restore images       
+        o_plot,_,noise_filt=pdf.object_estimate_jitter(ima_pad[:,:,i+1],
+                    sigma_vec[i+1,:],a_aver,a_d,cobs=cobs,low_f=low_f,wind=True,reg1=reg1,reg2=reg2)
+        ima_series[:,:,i+1]=o_plot[cut:-cut,cut:-cut]
+        contrast_2=np.std(ima_series[:,:,i+1])/np.mean(ima_series[:,:,i+1])
+        print('Contrast', (i+1), ':',np.round(100*contrast_2,2))
+
+    #Restore from i_max to ind1    
+    for i in range(i_max,ind1,-1):
+        print('-----------------')
+        print('Image index %g'%i)
+        print('-----------------')
+        ima_jitt=ima_series[:,:,(i,i-1)]
+           
+        #Realign the chosen pair of images
+        kappa=20
+        F0=fft2(ima_jitt[:,:,0])
+        print('Re-aligning pair of images (%g,%g)'%(i,i-1))  
+        F_comp=fft2(ima_jitt[:,:,1])
+        error,row_shift,col_shift,Gshift=sf.dftreg(F0,F_comp,kappa)
+        deltax=int(np.round(row_shift))
+        deltay=int(np.round(col_shift))
+        ima_jitt[:,:,1]=np.roll(ima_jitt[:,:,1],(deltax,deltay),axis=(0,1))
+        print('Delta x, Delta y:',row_shift,col_shift)    
+        
+    
+        #Compute jitter 
+        Ok,gamma,wind,susf=pdf.prepare_PD(ima_jitt,nuc,N)
+        sigma=pdf.minimization_jitter(Ok,gamma,plate_scale,nuc,N,
+                                          cut=int(0.15*N))  
+        sigma_vec[i-1,:]=sigma
+        print('Sigma:',sigma)  
+
+                #Restore images       
+        o_plot,_,noise_filt=pdf.object_estimate_jitter(ima_pad[:,:,i-1],
+                    sigma_vec[i-1,:],a_aver,a_d,cobs=cobs,low_f=low_f,wind=True,reg1=reg1,reg2=reg2)
+        ima_series[:,:,i-1]=o_plot[cut:-cut,cut:-cut]
+        contrast_2=np.std(ima_series[:,:,i-1])/np.mean(ima_series[:,:,i-1])
+        print('Contrast', (i-1), ':',np.round(100*contrast_2,2))
+
+
+        
+    #pf.movie(ima_series,'Icont_series_recons.mp4',axis=2,fps=5)
+    pf.movie3(ima,ima_series,moviename,axis=2,fps=fps,
+            title=['Jittered','Jitter free'])
+print(np.round(sigma_vec,3))
+np.save('sigma_'+fname+'.npy',sigma_vec)
+
+

@@ -14,10 +14,11 @@ plt.rcParams['figure.constrained_layout.use'] = True #For the layout to be as ti
 Imports and plots the set of Zernike coefficients and
 the wavefront map over the different subfields.
 """
+date='12_7_9_23' #Date to find the name of the files
+pref='517' #'517', '52502' or '52506'. Prefilter employed 
+Nima=1 #1, 39 #Number of images in the series to be considered
 N=300 #Dimension of the subpatches to run PD on
-pref='52506' #'517', '52502' or '52506'. Prefilter employed 
 realign=False #Realign focused-defocused image with pixel accuracy?
-Nima=1 #39 #Number of images in the series to be considered
 cam=0 #Cam index: 0 or 1
 low_f=0.2 #Noise filter threshold (default: 0.2)
 reg1=0.05 #Regularization parameter for the restoration
@@ -45,8 +46,10 @@ yf=y0+900  #FInal pixel of the subframe in Y direction
 #Path and name of the FITS file containing the focused and defocused images
 ext='.fits' #Format of the images to be opened (FITS)
 dir_folder='./' #Path of the folder containing the FITS file
-ffolder='Flight/13_7_11_42' #Name of the folder containing th FITS file
-fname='PD_13_7_11_42_cam_%g_%g_ima_%g'%(cam,int(pref),Nima) #Name of the FITS file
+#ffolder='Flight/15_7_9_23/'+pref #Name of the folder containing th FITS file
+#fname='PD_cam_%g_ima_%g'%(cam,Nima) #Name of the FITS file
+ffolder='Flight/'+date #Name of the folder containing th FITS file
+fname='PD_'+date+'_cam_%g_%g_ima_%g'%(cam,int(pref),Nima) #Name of the FITS file
 txtfolder=dir_folder +'txt'+ '/' + fname #Path of the txt files
 
 #Colormap limits for wavefront representation
@@ -201,7 +204,10 @@ norm_aver=2*np.pi/np.linalg.norm(a_aver)
 norm_aver2=2*np.pi/np.linalg.norm(a_aver[4:]) #To exclude tip/tilt and defocus
 print('WFE RMS:lambda/',np.round(norm_aver,2))
 wavef_aver=pdf.wavefront(a_aver,0,RHO,THETA,ap,R,N)
-print(a_aver)
+#print(a_aver)
+
+for i in range(len(a_aver)):
+    print(np.round(a_aver[i],4))
 
 fig4,axs4=plt.subplots()
 axs4.errorbar(range(Jmin,Jmax),a_aver[(Jmin-1):]/(2*np.pi), yerr=a_rms[(Jmin-1):]/(2*np.pi),fmt='-o',capsize=3,color='k',label='Retrieved')
@@ -252,7 +258,9 @@ contrast_rest=np.std(o_plot)/(np.mean(o_plot))*100
 min_rest=np.min(o_plot)
 max_rest=np.max(o_plot)
 
-
+#Print contrasts
+print('Contrast original:',np.round(contrast_0,2))
+print('Contrast restored:',np.round(contrast_rest,2))
 #Original and restored images
 fig6,ax6=plt.subplots(1,2)
 plot1=ax6[0].imshow(of0,cmap='gray',origin='lower',vmin=min_rest,vmax=max_rest)
@@ -289,7 +297,6 @@ if ima.ndim==3:
 
 
 
-
 #Filter
 fig7,ax7=plt.subplots()
 ax7.imshow(noise_filt)
@@ -314,8 +321,8 @@ plt.close()
 
 #Defocus inferred
 defocus_length=a_aver[3]*(8*np.sqrt(3)*wvl*fnum**2)/(np.pi*magnif**2)
-print('Defocus inferred at F4:',round(defocus_length*1e3,4),'mm')
-print('Defocus inferred at image:',round(defocus_length*magnif**2*1e3,4),'mm')
+#print('Defocus inferred at F4:',round(defocus_length*1e3,4),'mm')
+#print('Defocus inferred at image:',round(defocus_length*magnif**2*1e3,4),'mm')
 quit()
 
 fig8,ax8=plt.subplots()

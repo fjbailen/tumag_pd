@@ -18,21 +18,22 @@ plt.rcParams["image.interpolation"] = 'none'
 """
 Input parameters
 """
+date='12_7_9_23'
+pref='517' #'517', '52502' or '52506'. Prefilter employed
+Nima=1 #Number of images in the series
+cam=0 #Cam 0 or cam 1
 check_image=False
 realign=False #Realign focused-defocused image with pixel accuracy?
 N=300 #Dimension of the subpatches to run PD on
 cobs=32.4 #18.5 (MPS) 32.4 (Sunrise) #Diameter of central obscuration as a percentage of the aperture
 n_cores=16 #Number of cores of the PC to be employed for parallelization
-pref='517' #'517', '52502' or '52506'. Prefilter employed
 wvl,fnum,Delta_x=pdf.tumag_params(pref=pref)
 nuc,R=pdf.compute_nuc(N,wvl,fnum,Delta_x)
 
 #Path and name of the FITS file containing the focused and defocused images
-cam=0 #Cam 0 or cam 1
-Nima=1 #Number of images in the series
 dir_folder='./' #Path of the folder containing the FITS file
-ffolder='Flight/13_7_11_42' #Name of the folder containing th FITS file
-fname='PD_13_7_11_42_cam_%g_%g_ima_%g'%(cam,int(pref),Nima) #Name of the FITS file
+ffolder='Flight/'+date #Name of the folder containing th FITS file
+fname='PD_'+date+'_cam_%g_%g_ima_%g'%(cam,int(pref),Nima) #Name of the FITS file
 ext='.fits' #Format of the images to be opened (FITS)
 output=fname+'/' #Name of output folder to save txt files
 optimization='linear' #'linear' (SVD) or 'lbfgs'
@@ -98,6 +99,7 @@ if crop==True:
         ima=ima[x0:xf,y0:yf,:]
 
 
+
 #Re-order axis and normalize the image [# of image,dimx,dimy,F4/PD]
 #Nima=31
 if ima.ndim==4:
@@ -108,10 +110,9 @@ if ima.ndim==4:
     for i in range(Nima):
         ima[i,:]=ima[i,:]/norm_factor #Normalize by the mean of the focused image
 
-    
-#print(ima.shape)
-#pf.movie(ima[:,:200,:200,1],'PD_small_fov.mp4',fps=10,resol=720,axis=0)
-#pf.movie(ima[:,:,:,1],'PD_large_fov.mp4',fps=10,resol=720,axis=0)
+#pf.movie(ima[:,:350,:350,0],'test.mp4',axis=0,fps=5)
+
+
 
 
 #Realign images of the series
@@ -119,21 +120,20 @@ if ima.ndim==4:
 #ima_aligned[0,:,:,:]=ima[0,:,:,:]
 if realign is True:
     kappa=20
-    for j in range(2):
+    for j in range(2):#F4/PD
         print('Re-aligning images with index %g'%j)
         Gshift=fft2(ima[0,:,:,j])
-        for i in range(1,ima.shape[0]):
+        for i in range(1,ima.shape[0]):#Index along series
             F0=Gshift
             F_comp=fft2(ima[i,:,:,j])
             error,row_shift,col_shift,Gshift=sf.dftreg(F0,F_comp,kappa)
             deltax=int(np.round(row_shift))
             deltay=int(np.round(col_shift))
-            ima[i,:,:,j]=np.roll(ima[i,:,:,j],(deltax,deltay),axis=(0,1))
-            #ima_aligned[i,:,:,j]=np.real(ifft2(Gshift))
+            #[i,:,:,j]=np.roll(ima[i,:,:,j],(deltax,deltay),axis=(0,1))
+            ima[i,:,:,j]=np.real(ifft2(Gshift))
             print('Delta x, Delta y (pixels):',row_shift,col_shift)
-    #pf.movie2(ima[:,:,:,0],ima[:,:,:,0],'prueba.mp4',axis=0,fps=8)
-elif realign is False:
-    ima=np.mean(ima,axis=0) #Sum all images over the series
+    #pf.movie2(ima[:,:,:,0],ima[:,:,:,0],'prueba.mp4',axis=0,fps=5)
+ima=np.mean(ima,axis=0) #Sum all images over the series
 
 
 

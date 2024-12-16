@@ -18,6 +18,7 @@ zernikes=np.array([ 0,0,0,0.41504611,0.20220434,-0.50903575,
  -0.41532383,0.31802193,-0.128198,-0.11317134,-0.33396265,0.07905502,
  -0.06274168,-0.1311398,0.08048971])
 
+
 #Fraction of the telescope aperture obstructed by the central obscuration
 cobs=32.4 
 
@@ -45,6 +46,10 @@ PSF=PSF/np.max(PSF) #Normalization
 xp0=int(PSF.shape[0]/2)
 PSF_rad=pdf.radial_profile(PSF,[xp0,xp0])
 
+#PSF along X and Y
+xvec=np.arange(0,PSF.shape[0])
+PSFx=PSF[xp0,:]
+PSFy=PSF[:,xp0]
 
 #Plot in log scale
 fig,ax=plt.subplots()
@@ -53,7 +58,14 @@ fig.colorbar(im)
 
 #Plot of radial PSF
 fig,ax=plt.subplots()
-ax.plot(PSF_rad)
+ax.semilogy(PSF_rad)
 ax.set_ylabel('PSF amplitude (a.u.)')
 ax.set_xlabel('Radius (px)')
+
+#Plot of PSF along X and Y
+fig,ax=plt.subplots()
+ax.semilogy(xvec-xp0,PSFx,label='X direction')
+ax.set_ylabel('PSF amplitude (a.u.)')
+ax.set_xlabel('Radius (px)')
+ax.legend()
 plt.show()

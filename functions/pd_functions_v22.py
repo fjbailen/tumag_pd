@@ -388,10 +388,11 @@ def OTF_jitt(sigma,plate_scale,N,norm=None):
     """
     This function computes the OTFs of jitter corresponding to a pair of images:
     one free of jitter and another one affected by it. It is based on the
-    model of Fiete 2014 (Eq. 19)
+    model of Fiete 2019 (Eq. 19)
     Input:
         sigma: vector with the rms of jitter in x,y (in arcsec)
-                and its correlation (sigma_x,sigma_y,sigma_xy)
+                and its correlation (sigma_x,sigma_y,sigma_xy). The correlation factor
+                "sigma_xy" goes from -1 to 1 and is equivalent to rho_xy in Fiete (2019).
         plate_scale: plate scale in arcsec/pixel
         norm:{None,True}, optional. 'True' for normalization purpose. Default
                 is None
@@ -412,7 +413,8 @@ def OTF_jitt(sigma,plate_scale,N,norm=None):
     #OTF_jitter model for the jitter-free and the jitter-affected images
     otf_jitt=np.zeros((N,N,2))
     otf_jitt[:,:,0]=np.ones((N,N))
-    otf_jitt[:,:,1]=np.exp(-2*np.pi**2*(NU**2*sigma[0]**2+ETA**2*sigma[1]**2+NU*ETA*sigma[2]**2))
+    otf_jitt[:,:,1]=np.exp(-2*np.pi**2*(NU**2*sigma[0]**2+ETA**2*sigma[1]**2+\
+                                        2*NU*ETA*sigma[0]*sigma[1]*sigma[2]))
     
     if norm==True:
         norma=np.max(np.abs(otf_jitt)[:])
@@ -1282,13 +1284,11 @@ def minimization_jitter(Ok,gamma,plate_scale,nuc,N,cut=None):
 
 
     meth='Nelder-Mead'#'L-BFGS-B' or 'Nelder-Mead'
-    #opt={'ftol':1e-9,'gtol':1e-8}#
-    #opt={'ftol':1e-11,'gtol':1e-10}
-    opt={'ftol':1e-15,'gtol':1e-14}
-    minim=scipy.optimize.minimize(merit_func,[0,0,0],method=meth,options=opt,
-                                  bounds=((0,None),(0,None),(0,None)))
+    opt={'ftol':1e-15,'gtol':1e-14} #Options for L-BFGS-B method
+    minim=scipy.optimize.minimize(merit_func,[0,0,0],method=meth,#options=opt,
+                                  bounds=((0,None),(0,None),(-.9999,0.9999)))
     print(minim)
-    return np.array([minim.x]).T #To return an array consisting of 1 column
+    return minim.x#np.array([minim.x]).T #To return an array consisting of 1 column
 
 def read_image(file,ext,num_im=0,norma='yes'):
     """
@@ -1683,18 +1683,12 @@ def object_estimate_jitter(ima,sigma,a,a_d,cobs=0,wind=True,
         Hk=0*Hk_aberr
         for i in range(Ok.shape[2]):    
             Hk[:,:,i]=Hk_jitt[:,:,i]*Hk_aberr[:,:,i]
-    
+      
     #Restoration
     Q=Qfactor(Hk,gamma,nuc,N,reg1=reg1,reg2=reg2)
     
     if noise=='default':
-        if np.all(sigma==0):
-            noise_filt=filter_sch(Q,Ok,Hk,gamma,nuc,N,low_f=low_f)
-        else:
-            #If we have jitter, we reduce the cut-off frequency to avoid
-            #spurious artifacts close to the Nyquist frequency
-            nuc2=int(nuc)#int(0.5*nuc)
-            noise_filt=filter_sch(Q,Ok,Hk,gamma,nuc2,N,low_f=low_f)  
+        noise_filt=filter_sch(Q,Ok,Hk,gamma,nuc,N,low_f=low_f)
     else:
         noise_filt=noise
 

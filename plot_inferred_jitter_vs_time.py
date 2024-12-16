@@ -23,7 +23,7 @@ SNR=100 #Signal-to-noise ratio. 0 if no noise is to be applied
 N=256 #Number of pixels (Cadence simulatin)
 plate_scale=0.055 #Plate scale of the simulations in arcseconds (arcsec/pixel)
 Ntime=40 #Number of seconds of the simulation (max: 40)
-sigma=0.15
+sigma=[0,0.05,0.10,0.15]
 sigmax=sigma #RMS of jitter along X in arcsec
 sigmay=sigma #RMS of jitter along Y in arcsec
 Nacc=1000 #Number of accumulated images
@@ -36,24 +36,31 @@ aberr=np.zeros(4) #Aberrations of the instrument
 Load npy file and plot
 """
 folder='./Flight/Jitter/Simulations'
-fname="jitter_error_vs_time_rms_%g_arcsec_Njit_%g_SNR_%g.npy"%(sigmax,Ntime,SNR)
-data=np.load(folder+'/'+fname)
-
-
-#Arrays for plot
-time=data[:,0]
-rms_error=data[:,1]
-
-#Plot
-xlabel='Time (s)'
-ylabel=r'$\Delta\sigma$ [arcsec]'
+color=['b','r','k','orange']
+i=-1
 
 fig,axs=plt.subplots()
-axs.scatter(time,rms_error)
-axs.set_ylim([0,ymax])
-axs.set_xlabel(xlabel)
-axs.set_ylabel(ylabel)
-axs.set_title(r"$\sigma=%g$"%sigmax)
+for sigma_i in sigma:
+    i+=1
+    fname="jitter_error_vs_time_rms_%g_arcsec_Njit_%g_SNR_%g.npy"%(sigmax[i],Ntime,SNR)
+    data=np.load(folder+'/'+fname)
+
+
+    #Arrays for plot
+    time=data[:,0]
+    rms_error=data[:,1]
+
+    #Plot
+    xlabel='Time (s)'
+    ylabel=r'$\Delta\sigma$ [arcsec]'
+
+    axs.scatter(time,rms_error,color=color[i],label=r'$\sigma_{\rm true}=%g$"'%sigmax[i])
+    axs.set_ylim([-0.0005,ymax])
+    axs.set_xlabel(xlabel)
+    axs.set_ylabel(ylabel)
+    #axs.set_title(r"$\sigma=%g$"%sigmax[i])
+
+plt.legend()
 plt.show()
 
 

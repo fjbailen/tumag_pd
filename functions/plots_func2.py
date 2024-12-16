@@ -101,7 +101,7 @@ def movie2(im1,im2,filename,axis=2,fps=15,title=['',''],cmap='gray'):
     max2=np.max(im2[:,:,:])
     min=np.min((min1,min2))
     max=np.max((max1,max2))
-    print('Colorbar limits:',min,max)
+    #print('Colorbar limits:',min,max)
     #To use colorbars
     if axis==2:
         axs[0].imshow(im1[:,:,0],cmap=cmap,vmin=min,vmax=max)
@@ -172,9 +172,13 @@ def movie3(im1,im2,filename,axis=2,fps=15,title=['',''],cmap='gray'):
         tx2=axs["im2"].text(100, 100, '', fontsize=15, va='top',color='white')
 
         #Contrast
+        xmax=n+0.05
+        dx=int(0.1*n) #To avoid edges when computing the contrast
+        cont1=np.round(100*np.std(im1[dx:-dx,dx:-dx,0])/np.mean(im1[dx:-dx,dx:-dx,0]),1)
+        cont2=np.round(100*np.std(im2[dx:-dx,dx:-dx,0])/np.mean(im2[dx:-dx,dx:-dx,0]),1)
         axs["contrast"].scatter([],[])
-        axs["contrast"].set_xlim([-0.05,15.05])
-        axs["contrast"].set_ylim([8,17])
+        axs["contrast"].set_xlim([-0.05,xmax])
+        axs["contrast"].set_ylim([0.8*cont1,1.2*cont2])
         axs["contrast"].set_ylabel('Contrast [%]')
         axs["contrast"].set_xlabel('Frame index')
 
@@ -183,8 +187,8 @@ def movie3(im1,im2,filename,axis=2,fps=15,title=['',''],cmap='gray'):
         print(i)
         if axis==2:
             #Compute contrasts
-            cont1=np.round(100*np.std(im1[:,:,i])/np.mean(im1[:,:,i]),1)
-            cont2=np.round(100*np.std(im2[:,:,i])/np.mean(im2[:,:,i]),1)
+            cont1=np.round(100*np.std(im1[dx:-dx,dx:-dx,i])/np.mean(im1[dx:-dx,dx:-dx,i]),1)
+            cont2=np.round(100*np.std(im2[dx:-dx,dx:-dx,i])/np.mean(im2[dx:-dx,dx:-dx,i]),1)
 
             #Plots
             axs["im1"].imshow(im1[:,:,i],cmap=cmap,vmin=min,vmax=max)

@@ -1,6 +1,6 @@
 """
 This program infers the residual jitter between two
-images of the same scene.
+images of the same scene along a given temporal series.
 """
 import numpy as np
 import os
