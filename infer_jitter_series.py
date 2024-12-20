@@ -44,7 +44,7 @@ ffolder='Flight/Jitter/FS_1_2024_07_14'#'Flight/COMM_1_10_7_13_14' #Name of the 
 pref='52502' #Prefilter employed
 fname='series_jitter_2024_07_14'#'Icont_52502_cam_0_COMM_1' #Data file
 ext='.fits' #Extention of the data file
-txtfolder=dir_folder +'txt/PD_10_7_16_34_cam_0_52502_ima_1/svd' #Path of the txt files
+txtfolder=dir_folder +'txt/PD_14_7_13_07_cam_0_52502_ima_1' #Path of the txt files
 cam=0 #0 or 1. Camera index
 wave=0 #From 0 to 10. Wavelength index
 modul=0 #From 0 to 4. Modulation index
@@ -172,13 +172,13 @@ if ind2==ind1:
     quit() 
 elif ind2>ind1:
     """
-    Correct from jitter if several images of the series is analyzed
+    Correct from jitter if several images of the series are analyzed
     """
     sigma_vec=np.zeros((ind2-ind1+1,3))
     ima_series=np.zeros((ima.shape[0],ima.shape[1],ind2-ind1+1))
-    flag=np.zeros(ind2-ind1+1) #Zero if not corrected, one if already corrected
+    flag=np.zeros(ind2-ind1) #Zero if not corrected, one if already corrected
     j=-1
-    for i in range(ind1,ind2):
+    for i in range(ind1,ind2-1):
         j+=1
         print('-----------------')
         print('Image index %g'%i)
@@ -254,11 +254,11 @@ elif ind2>ind1:
     
     
     #Restore last image of the series
-    if flag[ind2]==0:
+    if flag[ind2-1]==0:
         #Correct the  image with index i
-        o_plot,_,noise_filt=pdf.object_estimate_jitter(ima_pad[:,:,ind2],
+        o_plot,_,noise_filt=pdf.object_estimate_jitter(ima_pad[:,:,ind2-1],
         [0,0,0],a_aver,a_d,cobs=cobs,low_f=low_f,wind=True,reg1=reg1,reg2=reg2)
-        ima_series[:,:,ind2]=o_plot[cut:-cut,cut:-cut] 
+        ima_series[:,:,ind2-1]=o_plot[cut:-cut,cut:-cut] 
 
         
     #pf.movie(ima_series,'Icont_series_recons.mp4',axis=2,fps=5)

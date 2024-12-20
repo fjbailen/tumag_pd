@@ -1276,8 +1276,8 @@ def minimization_jitter(Ok,gamma,plate_scale,nuc,N,cut=None):
         e=merite(E)
         L=meritl(e,cut=cut)
         #print('Merit function:',L)
-        #If L=0 because of an error computing Q
-        #set it to one to avoid the program to think that the convergence succeeded
+        #If L=0 because of an error computing Q,set it to one to
+        #avoid the program to think that the convergence succeeded
         if L==0:
             L=1 
         return L
@@ -1289,6 +1289,63 @@ def minimization_jitter(Ok,gamma,plate_scale,nuc,N,cut=None):
                                   bounds=((0,None),(0,None),(-.9999,0.9999)))
     print(minim)
     return minim.x#np.array([minim.x]).T #To return an array consisting of 1 column
+
+
+def minimization_jitter2(Ok,gamma,plate_scale,nuc,N,sigma0,cut=None):
+    """
+    Function that optimizes the jitter term for a set of two images,
+    THE TWO OF THEM affected by jitter. Jitter is known
+    for one of them
+    We do not take into account derivatives of the OTF.
+    The image for which we know jitter must be the one at index 0.
+
+    Inputs:
+        Ok: output of 'prepare_PD'. Consists of an array with
+            the FFT of the images. The first index
+            must correspond to the 'jitter-free' image.
+        gamma: output of "prepare_PD". Level of noise among images.
+        plate_scale: plate scale in arcsec/pixel
+        nuc: critical frequency of the telescope (computed at the beginning
+            of this module)
+        N: size of each PD image
+        sigma0: jittter of the image at index 0
+
+    """
+    #Compute jitter OTF for the reference image
+    Hk_jitt0,_=OTF_jitt(sigma0,plate_scale,N,norm=None)
+    Hk_jitt0=Hk_jitt0[:,:,1]
+
+    def merit_func(sigma):
+        #OTFs for the jitter term
+        Hk_jitt,_=OTF_jitt(sigma,plate_scale,N,norm=None)
+        Hk_jitt[:,:,0]=Hk_jitt0 #OTF of the referenc image
+       
+        #Q factor and noise filtering
+        Q=Qfactor(Hk_jitt,gamma,nuc,N,reg1=0,reg2=1)
+        noise_filt=filter_sch(Q,Ok,Hk_jitt,gamma,nuc,N)
+        Ok_filt=np.zeros((N,N,2),dtype='complex128')
+        for i in range(2):
+            Ok_filt[:,:,i]=noise_filt*Ok[:,:,i] #Filtered FFT
+
+        #Calculation of merit function
+        E=meritE(Ok_filt,Hk_jitt,Q)
+        e=merite(E)
+        L=meritl(e,cut=cut)
+        #print('Merit function:',L)
+        #If L=0 because of an error computing Q,set it to one to
+        #avoid the program to think that the convergence succeeded
+        if L==0:
+            L=1 
+        return L
+
+
+    meth='Nelder-Mead'#'L-BFGS-B' or 'Nelder-Mead'
+    opt={'ftol':1e-15,'gtol':1e-14} #Options for L-BFGS-B method
+    minim=scipy.optimize.minimize(merit_func,[0,0,0],method=meth,#options=opt,
+                                  bounds=((0,None),(0,None),(-.9999,0.9999)))
+    print(minim)
+    return minim.x#np.array([minim.x]).T #To return an array consisting of 1 column
+
 
 def read_image(file,ext,num_im=0,norma='yes'):
     """

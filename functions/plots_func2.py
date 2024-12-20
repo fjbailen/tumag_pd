@@ -158,8 +158,8 @@ def movie3(im1,im2,filename,axis=2,fps=15,title=['',''],cmap='gray'):
     max1=np.max(im1)
     min2=np.min(im2)
     max2=np.max(im2)
-    min=np.min((min1,min2))
-    max=np.max((max1,max2))
+    min=1.05*np.min((min1,min2))
+    max=0.95*np.max((max1,max2))
     #To use colorbars
     if axis==2:
         axs["im1"].imshow(im1[:,:,0],cmap=cmap,vmin=min,vmax=max)
@@ -171,20 +171,39 @@ def movie3(im1,im2,filename,axis=2,fps=15,title=['',''],cmap='gray'):
         tx1=axs["im1"].text(100, 100, '', fontsize=15, va='top',color='white')
         tx2=axs["im2"].text(100, 100, '', fontsize=15, va='top',color='white')
 
-        #Contrast
+        #Contrast plot settings
         xmax=n+0.05
         dx=int(0.1*n) #To avoid edges when computing the contrast
         cont1=np.round(100*np.std(im1[dx:-dx,dx:-dx,0])/np.mean(im1[dx:-dx,dx:-dx,0]),1)
         cont2=np.round(100*np.std(im2[dx:-dx,dx:-dx,0])/np.mean(im2[dx:-dx,dx:-dx,0]),1)
         axs["contrast"].scatter([],[])
         axs["contrast"].set_xlim([-0.05,xmax])
-        axs["contrast"].set_ylim([0.8*cont1,1.2*cont2])
+        axs["contrast"].set_ylim([0.9*cont1,1.05*cont2])
         axs["contrast"].set_ylabel('Contrast [%]')
         axs["contrast"].set_xlabel('Frame index')
 
+        #Print mean and rms of the contrast over the series
+        #im1
+        contrast1=np.zeros(im1.shape[-1])
+        for i in range(im1.shape[-1]):
+            contrast1[i]=100*np.std(im1[:,:,i])/np.mean(im1[:,:,i])
+        mean_contrast1=np.round(np.mean(contrast1),3)
+        std_contrast1=np.round(np.std(contrast1),3)    
+        print('Mean contrast for im1:',mean_contrast1)
+        print('STD contrast for im1:',std_contrast1)
+
+        #im2
+        contrast2=np.zeros(im2.shape[-1])
+        for i in range(im2.shape[-1]):
+            contrast2[i]=100*np.std(im2[:,:,i])/np.mean(im2[:,:,i])
+        mean_contrast2=np.round(np.mean(contrast2),3)
+        std_contrast2=np.round(np.std(contrast2),3)    
+        print('Mean contrast for im2:',mean_contrast2)
+        print('STD contrast for im2:',std_contrast2)
+
     #Refresh frames
     def animate(i):
-        print(i)
+        print('Rendering frame:',i)
         if axis==2:
             #Compute contrasts
             cont1=np.round(100*np.std(im1[dx:-dx,dx:-dx,i])/np.mean(im1[dx:-dx,dx:-dx,i]),1)
