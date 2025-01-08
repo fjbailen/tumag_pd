@@ -25,8 +25,9 @@ plt.rcParams['figure.constrained_layout.use'] = True
 Imports and plots the set of Zernike coefficients and
 the wavefront map over the different subfields.
 """
-ind1=0#0 #First index of the series#
-ind2=180 #15#10 #Last index of the series
+cam=1 #0 or 1. Camera index
+ind1=0 #First index of the series#
+ind2=70 #180 (full series),70 (35 min seres) 15 (short series) #Last index of the series
 k_max=9 #Number of txt files employed to average the wavefront
 low_f=0.2 #Cutoff of the Wiener filter
 reg1=0.05 #0.02 #Regularization factor used when computing Q
@@ -50,12 +51,11 @@ ext='.fits' #Format of the images to be opened (FITS)
 dir_folder='./' #Path of the folder containing the FITS file
 ffolder='Flight/Jitter/FS_1_2024_07_14' #Name of the folder containing th FITS file
 pref='52502' #Prefilter employed
-fname='D14-45403-73480'#'series_jitter_2024_07_14_wfe_corrected #Data file
+fname='D14-45403-50000_cam%g'%cam#'series_jitter_2024_07_14_wfe_corrected #Data file
 ext='.fits'#'.npy' #Extention of the data file
 txtname='PD_14_7_13_07_cam_0_52502_ima_1'
 txtfolder=dir_folder +'txt/' #Path of the txt files
 moviename='Icont_jitter_'+fname+'.mp4'#Name of the movie to be saved
-cam=0 #0 or 1. Camera index
 wave=0 #From 0 to 10. Wavelength index
 modul=0 #From 0 to 4. Modulation index
 
@@ -79,14 +79,14 @@ if crop==True:
     elif ima.ndim==3:
         ima=ima[x0:xf,y0:yf,:]
     elif ima.ndim==4:
-        ima=ima[:,:,x0:xf,y0:yf] 
+        ima=ima[ind1:ind2,:,x0:xf,y0:yf] 
 
 #Reorder axis if necessary
 if ima.ndim==4: 
     ima=ima[:,0,:,:]  #Select first modulation          
     ima=np.moveaxis(ima,0,-1) #Move image index to last index
     ima=ima/np.mean(ima[:200,:200,0])#Normalize images to continuum
-
+    ima=ima[:,:,ind1:ind2] #Select images of the series 
 
 
 
@@ -94,8 +94,11 @@ if ima.ndim==4:
 Find image with highest contrast
 """
 contrast=np.zeros(ind2-ind1)
+
 for i in range(ind1,ind2):
     contrast[i]=np.std(ima[:,:,i])/np.mean(ima[:,:,i])
+
+
 
 i_max=np.argmax(contrast)
 print('Image with highest contrast:',i_max)

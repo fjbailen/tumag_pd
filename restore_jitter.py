@@ -21,10 +21,10 @@ plt.rcParams['figure.constrained_layout.use'] = True
 Imports and plots the set of Zernike coefficients and
 the wavefront map over the different subfields.
 """
-wfe_corrected_comparison=False #Restore the WFE of the jittered image?
-ind1=1#0 #First index of the series#
-ind2=70#15#9 #Last index of the series
-fps=5 #Number of frames per second for the movie
+wfe_corrected_comparison=True #Restore the WFE of the jittered image?
+ind1=0#0 #First index of the series#
+ind2=70 #70#15#10 #Last index of the series
+
 k_max=9 #Number of txt files employed to average the wavefront
 low_f=0.2 #Cutoff of the Wiener filter
 reg1=0.05 #0.02 #Regularization factor used when computing Q
@@ -32,35 +32,40 @@ reg2=1 #Regularization factor used when computing Q
 cobs=32.4 #18.5 (MPS) 32.4 (Sunrise) #Diameter of central obscuration as a percentage of the aperture
 Jmax=22# 16 or 22.Maximum index of the zernike polynomials
 Jmin=4 #Minimum index of the zernike polynomials
-#N0=400 #Size of the focused/defocused images in the FITS file
 magnif=2.47 #Magnification factor of TuMag
 plate_scale= 0.0378 #Plate scale in arcseconds (arcsec/pixel)
 
 
 #Region to be subframed
-crop=False #If True, it crops the image using x0, xf, y0 and yf as limits
+crop=True #If True, it crops the image using x0, xf, y0 and yf as limits
 x0=200 #200 or 400 #Initial pixel of the subframe in X direction
 xf=x0+1600 #900 or 1600 #Final pixel of the subframe in X direction
 y0=x0 #Initial pixel of the subframe in Y direction
 yf=xf  #FInal pixel of the subframe in Y direction
 
 #Path and name of the FITS file containing the focused and defocused images
-fsigma='sigma_D14-45403-50000'
-fname='D14-45403-50000' #Data file
+fsigma='sigma_D14-45403-50000_cam1'
+fname='D14-45403-50000_cam1'#Data file
 ext='.fits' #Format of the images to be opened (FITS)
 dir_folder='./' #Path of the folder containing the FITS file
 ffolder='Flight/Jitter/FS_1_2024_07_14'#'Flight/COMM_1_10_7_13_14' #Name of the folder containing th FITS file
 pref='52502' #Prefilter employed
 
 ext='.fits' #Extention of the data file
-txtname='zeros'#'PD_14_7_13_07_cam_0_52502_ima_1'#'zeros' if no WFE correction
+txtname='PD_14_7_13_07_cam_0_52502_ima_1'#'zeros' if no WFE correction
 txtfolder=dir_folder +'txt/'+txtname #Path of the txt files
 sigma=np.load(fsigma+'.npy')
 cam=0 #0 or 1. Camera index
 wave=0 #From 0 to 10. Wavelength index
 modul=0 #From 0 to 4. Modulation index
 
-
+#Compute the umber of frames per second based on the number of images
+if (ind2-ind1)<30:
+    fps=3
+elif (ind2-ind1)<100:
+    fps=5 
+elif (ind2-ind1)>=100:
+    fps=8
 """
 Read image
 """
