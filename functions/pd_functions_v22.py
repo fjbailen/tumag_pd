@@ -2032,3 +2032,74 @@ def simulate_jitter(ima,sigmax,sigmay,plate_scale,Nacc):
         ima_shift+=sf.subpixel_shift(IMA,x[i],y[i])
     ima_shift=ima_shift/Nacc
     return ima_shift,rms_x,rms_y
+
+def read_crop_reorder(path,ext,cam,wave,modul,crop=False,
+                      crop_region=[200,1800,200,1800]):
+    """
+    Function that reads a TuMag image, crops its central part
+    and reorders the axes as follows: (dimx, dimy, frame)
+        path: path of the image
+        ext: extension of the image
+        cam: camera (0 or 1)
+        wave: wavelength (From 0 to 10)
+        modul: modulation (From 0 to 4)
+        crop: True to crop the image
+        crop_region: region to crop the image if 'crop' is True
+    """
+    #Read image
+    if ext=='.npy':
+        ima=np.load(path+ext)
+        ima=ima[cam,wave,modul,:,:]
+    else:
+        ima=read_image(path,ext,norma='yes')
+
+
+    #Crop the image
+    x0,xf,y0,yf=crop_region
+    if crop==True:
+        if ima.ndim==2:
+            ima=ima[x0:xf,y0:yf]
+        elif ima.ndim==3:
+            ima=ima[x0:xf,y0:yf,:]
+        elif ima.ndim==4:
+            ima=ima[:,:,x0:xf,y0:yf] 
+
+    #Reorder axis if necessary
+    if ima.ndim==4: 
+        ima=ima[:,modul,:,:]  #Select first modulation          
+        ima=np.moveaxis(ima,0,-1) #Move image index to last index
+        ima=ima/np.mean(ima[:200,:200,0])#Normalize images to continuum
+    return ima
+
+def radial_MTF(a,a_d,sigma,plate_scale,cobs=0,inst='tumag',
+               tiptilt=False):
+    #System parameters
+    if inst=='tumag':
+        plate_scale=0.0378 #Plate scale in arcseconds (arcsec/pixel)
+        wvl,fnum,Delta_x=tumag_params()
+    elif inst=='imax':
+        plate_scale=0.055
+        wvl,fnum,Delta_x=tumag_params()
+    N=1000
+    nuc,R=compute_nuc(N,wvl,fnum,Delta_x)
+    ap=aperture(N,R,cobs=cobs)
+    RHO,THETA=sampling2(N,R)
+
+    #Jitter OTF
+    Hk_jitt,_=OTF_jitt(sigma,plate_scale,N,norm=False)
+    Hk_jitt[:,:,0]=Hk_jitt[:,:,1] #To employ the OTF of the jittered image
+
+    #Aberration OTF
+    Hk_aberr,_=OTF(a,a_d,RHO,THETA,ap,norm=True,K=2,tiptilt=tiptilt)
+ 
+
+    #Total OTF
+    if np.all(a==0): #If all aberrations are zero
+        Hk=Hk_jitt
+    else:
+        Hk=0*Hk_aberr
+        Hk[:,:,0]=Hk_jitt[:,:,0]*Hk_aberr[:,:,0]
+    
+    #Radial OTF
+    MTF_radial=radial_profile(np.abs(Hk[:,:,0]), [int(N/2),int(N/2)])
+    return MTF_radial,nuc

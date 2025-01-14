@@ -21,8 +21,9 @@ plt.rcParams['figure.constrained_layout.use'] = True
 Imports and plots the set of Zernike coefficients and
 the wavefront map over the different subfields.
 """
+region_contrast='full' #Region to compute the contrast. 'full' or 'corner'.
 wfe_corrected_comparison=True #Restore the WFE of the jittered image?
-ind1=0#0 #First index of the series#
+ind1=1#0 #First index of the series#
 ind2=70 #70#15#10 #Last index of the series
 
 k_max=9 #Number of txt files employed to average the wavefront
@@ -37,19 +38,21 @@ plate_scale= 0.0378 #Plate scale in arcseconds (arcsec/pixel)
 
 
 #Region to be subframed
-crop=True #If True, it crops the image using x0, xf, y0 and yf as limits
+crop=False #If True, it crops the image using x0, xf, y0 and yf as limits
 x0=200 #200 or 400 #Initial pixel of the subframe in X direction
 xf=x0+1600 #900 or 1600 #Final pixel of the subframe in X direction
 y0=x0 #Initial pixel of the subframe in Y direction
 yf=xf  #FInal pixel of the subframe in Y direction
 
+
 #Path and name of the FITS file containing the focused and defocused images
-fsigma='sigma_D14-45403-50000_cam1'
-fname='D14-45403-50000_cam1'#Data file
+fsigma='./Jitter estimations/sigma_D14-45403-50000_cam0'
+fname='D14-45403-50000_cam0'#Data file
 ext='.fits' #Format of the images to be opened (FITS)
 dir_folder='./' #Path of the folder containing the FITS file
-ffolder='Flight/Jitter/FS_1_2024_07_14'#'Flight/COMM_1_10_7_13_14' #Name of the folder containing th FITS file
+ffolder='./Flight/Jitter/FS_1_2024_07_14'#'Flight/COMM_1_10_7_13_14' #Name of the folder containing th FITS file
 pref='52502' #Prefilter employed
+
 
 ext='.fits' #Extention of the data file
 txtname='PD_14_7_13_07_cam_0_52502_ima_1'#'zeros' if no WFE correction
@@ -59,36 +62,20 @@ cam=0 #0 or 1. Camera index
 wave=0 #From 0 to 10. Wavelength index
 modul=0 #From 0 to 4. Modulation index
 
-#Compute the umber of frames per second based on the number of images
+#Compute the number of frames per second based on the number of images
 if (ind2-ind1)<30:
     fps=3
 elif (ind2-ind1)<100:
     fps=5 
 elif (ind2-ind1)>=100:
     fps=8
+
 """
 Read image
 """
-if ext=='.npy':
-    ima=np.load(dir_folder+ffolder+'/'+fname+ext)
-    ima=ima[cam,wave,modul,:,:]
-else:
-    ima=pdf.read_image(dir_folder+ffolder+'/'+fname,ext,
-                       norma='yes')
-#Crop the image
-if crop==True:
-    if ima.ndim==2:
-        ima=ima[x0:xf,y0:yf]
-    elif ima.ndim==3:
-        ima=ima[x0:xf,y0:yf,:]
-    elif ima.ndim==4:
-        ima=ima[:,:,x0:xf,y0:yf] 
-
-#Reorder axis if necessary
-if ima.ndim==4: 
-    ima=ima[:,0,:,:]  #Select first modulation          
-    ima=np.moveaxis(ima,0,-1) #Move image index to last index
-    ima=ima/np.mean(ima[:200,:200,0])#Normalize images to continuum
+path=dir_folder+ffolder+'/'+fname #Path of the image
+ima=pdf.read_crop_reorder(path,ext,cam,wave,modul,crop=False,
+                      crop_region=[x0,xf,y0,yf])
 
 
 
@@ -107,7 +94,7 @@ ax1.plot(ind_vec,contrast,'o',color='b',label='Contrast')
 ax1.set_ylabel(r'Contrast ($\%$)')
 ax2 = ax1.twinx()  
 ax2.plot(ind_vec,sigma_rms,'o',color='r',label=r'$\sigma$')
-ax2.set_ylabel(r'$\sigma$ (rads)')
+ax2.set_ylabel(r'$\sigma$ (arcsec)')
 fig.legend()
 plt.savefig(fname+'_sigma_and_contrast_vs_index.png')
 plt.close()
@@ -115,7 +102,7 @@ plt.close()
 fig,axs=plt.subplots()
 axs.plot(contrast,sigma_rms,'o')
 axs.set_xlabel(r'Contrast $(\%)$')
-axs.set_ylabel(r'$\sigma$ (rads)')
+axs.set_ylabel(r'$\sigma$ (arcsec)')
 axs.set_ylim([0.9*np.sort(sigma_rms)[1],1.05*np.max(sigma_rms)])
 plt.savefig(fname+'_sigma_vs_contrast.png')
 plt.close()
@@ -189,22 +176,23 @@ if ind2>ind1:
     ax1.set_ylabel(r'Contrast ($\%$)')
     ax2 = ax1.twinx()  
     ax2.plot(ind_vec,sigma_rms,'o',color='r',label=r'$\sigma$')
-    ax2.set_ylabel(r'$\sigma$ (rads)')
+    ax2.set_ylabel(r'$\sigma$ (arcsec)')
     fig.legend()
-    plt.show()
+    #plt.show()
     plt.close()
 
     #Plot contrast of restored image vs jitter
     fig,axs=plt.subplots()
     axs.plot(contrast2,sigma_rms,'o')
     axs.set_xlabel(r'Contrast $(\%)$')
-    axs.set_ylabel(r'$\sigma$ (rads)')
+    axs.set_ylabel(r'$\sigma$ (arcsec)')
     axs.set_ylim([0.9*np.sort(sigma_rms)[1],1.05*np.max(sigma_rms)])
-    plt.show()
+    #plt.show()
     plt.close()
 
     pf.movie3(ima[:,:,ind1:ind2],ima_series,'Icont_comparison_'+fname+'.mp4',
-              axis=2,fps=fps,title=['Jittered','Jitter free'])
+              axis=2,fps=fps,title=['Jittered','Jitter free'],
+              contrast=region_contrast)
 
 
 #Print jitter

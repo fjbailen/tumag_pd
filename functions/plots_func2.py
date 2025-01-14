@@ -140,14 +140,23 @@ def movie2(im1,im2,filename,axis=2,fps=15,title=['',''],cmap='gray'):
     ani.save('./'+filename, writer=writer)
     plt.close()
 
-def movie3(im1,im2,filename,axis=2,fps=15,title=['',''],cmap='gray'):
+def movie3(im1,im2,filename,axis=2,fps=15,title=['',''],cmap='gray',
+           contrast='full'):
     """
     Creates a movie from two 3D images
+        im1, im2: 3D images
+        filename: name of the file for the movie
+        axis: axis along the series
+        fps: frames per second
+        title: titles for the images
+        cmap: colormap
+        contrast: 'full' for computing contrast over the whole image,
+                  'corner' for computing contrast over a corner
     """
     metadata = dict(title='Movie', artist='FJBM',
                 comment='')
     writer = FFMpegWriter(fps=fps, metadata=metadata,bitrate=15000)
-    n=im1.shape[axis]
+    n=im1.shape[axis] #Number of frames
     fig = plt.figure(figsize=(15, 10), layout='constrained')
     axs = fig.subplot_mosaic([["im1", "im1", "im1", "im2", "im2", "im2"],
                               ["im1","im1", "im1", "im2", "im2", "im2"],
@@ -173,9 +182,20 @@ def movie3(im1,im2,filename,axis=2,fps=15,title=['',''],cmap='gray'):
 
         #Contrast plot settings
         xmax=n+0.05
-        dx=int(0.1*n) #To avoid edges when computing the contrast
-        cont1=np.round(100*np.std(im1[dx:-dx,dx:-dx,0])/np.mean(im1[dx:-dx,dx:-dx,0]),1)
-        cont2=np.round(100*np.std(im2[dx:-dx,dx:-dx,0])/np.mean(im2[dx:-dx,dx:-dx,0]),1)
+        dx=10 #To avoid edges when computing the contrast
+
+        if contrast=='full':
+            x0=dx
+            xf=-dx
+            y0=x0
+            yf=xf
+        elif contrast=='corner':
+            x0=dx
+            xf=dx+400
+            y0=x0
+            yf=xf   
+        cont1=np.round(100*np.std(im1[x0:xf,y0:yf,0])/np.mean(im1[x0:xf,y0:yf,0]),1)
+        cont2=np.round(100*np.std(im2[x0:xf,y0:yf,0])/np.mean(im2[x0:xf,y0:yf,0]),1)
         axs["contrast"].scatter([],[])
         axs["contrast"].set_xlim([-0.05,xmax])
         axs["contrast"].set_ylim([0.9*cont1,1.05*cont2])
@@ -184,18 +204,18 @@ def movie3(im1,im2,filename,axis=2,fps=15,title=['',''],cmap='gray'):
 
         #Print mean and rms of the contrast over the series
         #im1
-        contrast1=np.zeros(im1.shape[-1])
-        for i in range(im1.shape[-1]):
-            contrast1[i]=100*np.std(im1[:,:,i])/np.mean(im1[:,:,i])
+        contrast1=np.zeros(n)
+        for i in range(n):
+            contrast1[i]=100*np.std(im1[x0:xf,y0:yf,i])/np.mean(im1[x0:xf,y0:yf,i])
         mean_contrast1=np.round(np.mean(contrast1),3)
         std_contrast1=np.round(np.std(contrast1),3)    
         print('Mean contrast for im1:',mean_contrast1)
         print('STD contrast for im1:',std_contrast1)
 
         #im2
-        contrast2=np.zeros(im2.shape[-1])
-        for i in range(im2.shape[-1]):
-            contrast2[i]=100*np.std(im2[:,:,i])/np.mean(im2[:,:,i])
+        contrast2=np.zeros(n)
+        for i in range(n):
+            contrast2[i]=100*np.std(im2[x0:xf,y0:yf,i])/np.mean(im2[x0:xf,y0:yf,i])
         mean_contrast2=np.round(np.mean(contrast2),3)
         std_contrast2=np.round(np.std(contrast2),3)    
         print('Mean contrast for im2:',mean_contrast2)
@@ -206,8 +226,10 @@ def movie3(im1,im2,filename,axis=2,fps=15,title=['',''],cmap='gray'):
         print('Rendering frame:',i)
         if axis==2:
             #Compute contrasts
-            cont1=np.round(100*np.std(im1[dx:-dx,dx:-dx,i])/np.mean(im1[dx:-dx,dx:-dx,i]),1)
-            cont2=np.round(100*np.std(im2[dx:-dx,dx:-dx,i])/np.mean(im2[dx:-dx,dx:-dx,i]),1)
+            cont1=np.round(100*np.std(im1[x0:xf,y0:yf,i])/np.mean(im1[x0:xf,y0:yf,i]),1)
+            cont2=np.round(100*np.std(im2[x0:xf,y0:yf,i])/np.mean(im2[x0:xf,y0:yf,i]),1)
+            #cont1=np.round(contrast1[i],1)#np.round(100*np.std(im1[x0:xf,y0:yf,i])/np.mean(im1[x0:xf,y0:yf,i]),1)
+            #cont2=np.round(contrast2[i],1)#np.round(100*np.std(im2[x0:xf,y0:yf,i])/np.mean(im2[x0:xf,y0:yf,i]),1)
 
             #Plots
             axs["im1"].imshow(im1[:,:,i],cmap=cmap,vmin=min,vmax=max)
@@ -240,3 +262,12 @@ def plot_scatter_density(x,y,xlabel='',ylabel=''):
     ax.set_ylabel(ylabel)
     plt.show()
     return
+
+
+def remove_tick_labels(axs):
+    """
+    Function to remove tick labels from imshow plots
+    """
+    for ax in axs.flatten():
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])

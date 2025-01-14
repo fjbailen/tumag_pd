@@ -25,7 +25,7 @@ plt.rcParams['figure.constrained_layout.use'] = True
 Imports and plots the set of Zernike coefficients and
 the wavefront map over the different subfields.
 """
-cam=1 #0 or 1. Camera index
+cam=0 #0 or 1. Camera index
 ind1=0 #First index of the series#
 ind2=70 #180 (full series),70 (35 min seres) 15 (short series) #Last index of the series
 k_max=9 #Number of txt files employed to average the wavefront
@@ -64,30 +64,9 @@ modul=0 #From 0 to 4. Modulation index
 """
 Read image
 """
-if ext=='.npy':
-    ima=np.load(dir_folder+ffolder+'/'+fname+ext)
-    #ima=ima[cam,wave,modul,:,:]
-else:
-    ima=pdf.read_image(dir_folder+ffolder+'/'+fname,ext,
-                       norma='yes')
-
-
-#Crop the image
-if crop==True:
-    if ima.ndim==2:
-        ima=ima[x0:xf,y0:yf]
-    elif ima.ndim==3:
-        ima=ima[x0:xf,y0:yf,:]
-    elif ima.ndim==4:
-        ima=ima[ind1:ind2,:,x0:xf,y0:yf] 
-
-#Reorder axis if necessary
-if ima.ndim==4: 
-    ima=ima[:,0,:,:]  #Select first modulation          
-    ima=np.moveaxis(ima,0,-1) #Move image index to last index
-    ima=ima/np.mean(ima[:200,:200,0])#Normalize images to continuum
-    ima=ima[:,:,ind1:ind2] #Select images of the series 
-
+path=dir_folder+ffolder+'/'+fname #Path of the image
+ima=pdf.read_crop_reorder(path,ext,cam,wave,modul,crop=False,
+                      crop_region=[x0,xf,y0,yf])
 
 
 """
@@ -103,6 +82,9 @@ for i in range(ind1,ind2):
 i_max=np.argmax(contrast)
 print('Image with highest contrast:',i_max)
 
+plt.plot(contrast,marker='o')
+plt.show()
+quit()
 #Colormap limits for other plots
 vmin=np.min(ima[:,:,i_max])
 vmax=np.max(ima[:,:,i_max])
