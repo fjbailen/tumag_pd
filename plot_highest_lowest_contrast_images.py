@@ -140,7 +140,7 @@ plt.legend()
 plt.xlabel(r'$\nu/\nu_c$')
 plt.ylabel('MTF')
 plt.xlim([0,1])
-plt.show()
+#plt.show()
 plt.close()
 
 #Restore only WFE
@@ -162,12 +162,6 @@ fig,axs=plt.subplots(3,2)
 fig2,axs2=plt.subplots(3,2)
 
 
-# Function to remove tick labels from imshow plots
-def remove_tick_labels(axs):
-    for ax in axs.flatten():
-        ax.set_xticklabels([])
-        ax.set_yticklabels([])
-
 #Plot only the sunspot
 axs[0,0].imshow(ima[x0:xf,y0:yf,0],cmap=cmap,vmin=vmin,vmax=vmax)
 axs[0,0].set_title('Lowest contrast')
@@ -177,7 +171,7 @@ axs[1,0].set_ylabel('WFE correction')
 axs[0,1].imshow(ima[x0:xf,y0:yf,1],cmap=cmap,vmin=vmin,vmax=vmax)
 axs[0,1].set_title('Highest contrast')
 axs[1,1].imshow(ima_series[x0:xf,y0:yf,1],cmap=cmap,vmin=vmin,vmax=vmax)
-remove_tick_labels(axs)
+pf.remove_tick_labels(axs)
 
 #Plot the full image
 axs2[0,0].imshow(ima[:,:,0],cmap=cmap,vmin=vmin,vmax=vmax)
@@ -188,7 +182,7 @@ axs2[1,0].set_ylabel('WFE correction')
 axs2[0,1].imshow(ima[:,:,1],cmap=cmap,vmin=vmin,vmax=vmax)
 axs2[0,1].set_title('Highest contrast')
 axs2[1,1].imshow(ima_series[:,:,1],cmap=cmap,vmin=vmin,vmax=vmax)
-remove_tick_labels(axs2)
+pf.remove_tick_labels(axs2)
 
 #Add text labels with the contrast values
 for i in range(2):
@@ -208,12 +202,27 @@ for i in range(2):
 Restore WFE + jitter
 """
 #Reconstruct images
+labeli=['Lowest contrast','Highest contrast']
+fig,axs5=plt.subplots()
+wvl,fnum,Delta_x=pdf.tumag_params()
+Npad=ima_pad.shape[0]
+xc=int(Npad/2)
+nuc,R=pdf.compute_nuc(Npad,wvl,fnum,Delta_x)
 for i in range(2):
-    o_plot,_,_=pdf.object_estimate_jitter(ima_pad[:,:,i],
+    o_plot,_,noise_filter=pdf.object_estimate_jitter(ima_pad[:,:,i],
                     sigma[i,:],a_aver,a_d,cobs=cobs,low_f=low_f,
                     wind=True,reg1=reg1,reg2=reg2)
     ima_series[:,:,i]=o_plot[cut:-cut,cut:-cut] 
     contrast_rest[i]=100*np.std(ima_series[:,:,i])/np.mean(ima_series[:,:,i])
+
+    #Plot radial MTF
+    radial_noise=pdf.radial_profile(noise_filter, [xc,xc])
+    radius=np.arange(radial_noise.shape[0])/nuc
+    axs5.plot(radius,radial_noise,label=labeli[i])
+axs5.set_title('Noise filter')
+axs5.legend()
+
+
 
 #Plot
 axs[2,0].imshow(ima_series[x0:xf,y0:yf,0],cmap=cmap,vmin=vmin,vmax=vmax)

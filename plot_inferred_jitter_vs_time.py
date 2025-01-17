@@ -18,7 +18,7 @@ plt.rcParams['figure.constrained_layout.use'] = True #For the layout to be as ti
 
 
 #Parameters of input data
-ymax=0.035 #Maximum limit for the plot
+ymax=0.15#0.035 #Maximum limit for the plot
 SNR=100 #Signal-to-noise ratio. 0 if no noise is to be applied
 N=256 #Number of pixels (Cadence simulatin)
 plate_scale=0.055 #Plate scale of the simulations in arcseconds (arcsec/pixel)

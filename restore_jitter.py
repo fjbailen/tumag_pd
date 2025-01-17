@@ -21,7 +21,7 @@ plt.rcParams['figure.constrained_layout.use'] = True
 Imports and plots the set of Zernike coefficients and
 the wavefront map over the different subfields.
 """
-region_contrast='full' #Region to compute the contrast. 'full' or 'corner'.
+region_contrast='corner' #Region to compute the contrast. 'full' or 'corner'.
 wfe_corrected_comparison=True #Restore the WFE of the jittered image?
 ind1=1#0 #First index of the series#
 ind2=70 #70#15#10 #Last index of the series
@@ -82,22 +82,28 @@ ima=pdf.read_crop_reorder(path,ext,cam,wave,modul,crop=False,
 #Plot jitter vs contrast
 contrast=np.zeros(ind2-ind1)
 i=-1
+dx=10 #To avoid edges when computing the contrast
 for ind in range(ind1,ind2):
     i+=1
-    contrast[i]=100*np.std(ima[:,:,ind])/np.mean(ima[:,:,ind])
+    contrast[i]=100*np.std(ima[dx:-dx,dx:-dx,ind])/\
+    np.mean(ima[dx:-dx,dx:-dx,ind])
 sigma_rms=np.sqrt(sigma[ind1:ind2,0]**2+sigma[ind1:ind2,1]**2)
 
 
 ind_vec=np.arange(ind1,ind2)
 fig,ax1=plt.subplots()
-ax1.plot(ind_vec,contrast,'o',color='b',label='Contrast')
+plot1,=ax1.plot(ind_vec,contrast,'o',color='b')
 ax1.set_ylabel(r'Contrast ($\%$)')
 ax2 = ax1.twinx()  
-ax2.plot(ind_vec,sigma_rms,'o',color='r',label=r'$\sigma$')
+plot2,=ax2.plot(ind_vec,sigma_rms,'o',color='r')
 ax2.set_ylabel(r'$\sigma$ (arcsec)')
-fig.legend()
+ax1.set_xlabel('Frame index')
+ax2.legend([plot1, plot2], ['Contrast', r'$\sigma$'],loc='upper left')
+#fig.legend(loc='upper left')
 plt.savefig(fname+'_sigma_and_contrast_vs_index.png')
+plt.savefig(fname+'_sigma_and_contrast_vs_index.eps')
 plt.close()
+
 
 fig,axs=plt.subplots()
 axs.plot(contrast,sigma_rms,'o')
@@ -105,23 +111,17 @@ axs.set_xlabel(r'Contrast $(\%)$')
 axs.set_ylabel(r'$\sigma$ (arcsec)')
 axs.set_ylim([0.9*np.sort(sigma_rms)[1],1.05*np.max(sigma_rms)])
 plt.savefig(fname+'_sigma_vs_contrast.png')
+plt.savefig(fname+'_sigma_vs_contrast.eps')
 plt.close()
 
 
 """
 Restoration with average Zernike coefficients if only one image is selected
 """
-
-
 if txtname == 'zeros':
     a_aver=np.array([0,0,0,0])
 else:
     a_aver=pdf.retrieve_aberr(k_max,Jmax,txtfolder)
-#sigma[:,:]=0
-###########################
-
-
-
 a_d=0 #For pdf.object_estimate to restore a single image
 
 #Image padding

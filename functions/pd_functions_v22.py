@@ -1242,7 +1242,7 @@ gamma,nuc,N,disp=True,cut=None,ffolder='',K=2,jac=True):
     print(minim)
     return np.array([minim.x]).T #To return an array consisting of 1 column
 
-def minimization_jitter(Ok,gamma,plate_scale,nuc,N,cut=None):
+def minimization_jitter(Ok,gamma,plate_scale,nuc,N,cut=None,print_res=True):
     """
     Function that optimizes the jitter term for a set of two images,
     one free from jitter and another one affected by it.
@@ -1287,11 +1287,12 @@ def minimization_jitter(Ok,gamma,plate_scale,nuc,N,cut=None):
     opt={'ftol':1e-15,'gtol':1e-14} #Options for L-BFGS-B method
     minim=scipy.optimize.minimize(merit_func,[0,0,0],method=meth,#options=opt,
                                   bounds=((0,None),(0,None),(-.9999,0.9999)))
-    print(minim)
+    if print_res is True:
+        print(minim)
     return minim.x#np.array([minim.x]).T #To return an array consisting of 1 column
 
 
-def minimization_jitter2(Ok,gamma,plate_scale,nuc,N,sigma0,cut=None):
+def minimization_jitter2(Ok,gamma,plate_scale,nuc,N,sigma0,cut=None,print_res=True):
     """
     Function that optimizes the jitter term for a set of two images,
     THE TWO OF THEM affected by jitter. Jitter is known
@@ -1309,6 +1310,7 @@ def minimization_jitter2(Ok,gamma,plate_scale,nuc,N,sigma0,cut=None):
             of this module)
         N: size of each PD image
         sigma0: jittter of the image at index 0
+        print_res(True or False): to print the optimization results
 
     """
     #Compute jitter OTF for the reference image
@@ -1343,7 +1345,8 @@ def minimization_jitter2(Ok,gamma,plate_scale,nuc,N,sigma0,cut=None):
     opt={'ftol':1e-15,'gtol':1e-14} #Options for L-BFGS-B method
     minim=scipy.optimize.minimize(merit_func,[0,0,0],method=meth,#options=opt,
                                   bounds=((0,None),(0,None),(-.9999,0.9999)))
-    print(minim)
+    if print_res is True:
+        print(minim)
     return minim.x#np.array([minim.x]).T #To return an array consisting of 1 column
 
 
@@ -1569,15 +1572,13 @@ def prepare_PD(ima,nuc,N,wind=True,kappa=100):
     else:
         wind=np.ones((ima.shape[0],ima.shape[1]))
 
-    #Apodization and FFT of focused image
+    #Apodization, mean substraction and FFT of focused image
     susf=np.sum(wind*ima[:,:,0])/np.sum(wind)
     of=(ima[:,:,0]-susf)*wind
-
-    #Of=mf.fourier2(of)
     Of=fft2(of)
     Of=Of/(N**2)
 
-    #Apodization and FFTs of each of the K images
+    #Apodization and FFTs of each of the defocused images
     for i in range(1,Nima):
         susi=np.sum(wind*ima[:,:,i])/np.sum(wind)
         imak=(ima[:,:,i]-susi)*wind
@@ -1587,8 +1588,8 @@ def prepare_PD(ima,nuc,N,wind=True,kappa=100):
         Ok[:,:,i]=fft2(imak)
         Ok[:,:,i]=Ok[:,:,i]/(N**2)
 
-        #Compute and correct the shifts between images
-        error,row_shift,col_shift,Gshift=sf.dftreg(Of,Ok[:,:,i],kappa)
+        #Compute and correct the shifts wich respect to the focused image
+        _,row_shift,col_shift,Gshift=sf.dftreg(Of,Ok[:,:,i],kappa)
         print('Residual shift:',row_shift,col_shift)
 
         Ok[:,:,i]=Gshift #We shift Ok[:,:,i]
@@ -1718,7 +1719,9 @@ def object_estimate_jitter(ima,sigma,a,a_d,cobs=0,wind=True,
 
     #Fourier transform images
     Ok, gamma, wind, susf=prepare_PD(ima,nuc,N,wind=wind)
-    
+    Nima=Ok.shape[2] #Number of images to be employed in the reconstruction
+
+
     #Set gamma[1] to zero, as we do want to reconstruct only the first imag
     if isinstance(a_d, np.ndarray): #If a_d is an array...
         if a_d[0]==a_d[1]:#In this case, the 2nd image is a dummy image
@@ -1729,18 +1732,18 @@ def object_estimate_jitter(ima,sigma,a,a_d,cobs=0,wind=True,
     Hk_jitt,_=OTF_jitt(sigma,plate_scale,N,norm=False)
     Hk_jitt[:,:,0]=Hk_jitt[:,:,1] #To employ the OTF of the jittered image
 
-    #Aberration OTF
-    Hk_aberr,_=OTF(a,a_d,RHO,THETA,ap,norm=True,K=Ok.shape[2],tiptilt=tiptilt)
  
-
+    #Aberration OTF
+    Hk_aberr,_=OTF(a,a_d,RHO,THETA,ap,norm=True,K=Nima,tiptilt=tiptilt)
+ 
     #Total OTF
     if np.all(a==0): #If all aberrations are zero
         Hk=Hk_jitt
     else:
         Hk=0*Hk_aberr
-        for i in range(Ok.shape[2]):    
+        for i in range(Nima):    
             Hk[:,:,i]=Hk_jitt[:,:,i]*Hk_aberr[:,:,i]
-      
+    
     #Restoration
     Q=Qfactor(Hk,gamma,nuc,N,reg1=reg1,reg2=reg2)
     
@@ -1749,7 +1752,7 @@ def object_estimate_jitter(ima,sigma,a,a_d,cobs=0,wind=True,
     else:
         noise_filt=noise
 
-    Nima=Ok.shape[2]
+
     for i in range(0,Nima):
         #Filtering in Fourier domain
         Ok[:,:,i]=noise_filt*Ok[:,:,i]
@@ -1962,14 +1965,14 @@ def padding(ima):
     the image to reduce edge effects when reconstructing it.
     """
     size=ima.shape[0]
-    pad_width = int(size*10/(100-10*2))
+    pw = int(size*10/(100-10*2)) #Pad width to reduce edge effects
     if ima.ndim==3:
-        ima_pad = np.zeros((size+pad_width*2,size+pad_width*2,ima.shape[-1]))
+        ima_pad = np.zeros((size+pw*2,size+pw*2,ima.shape[-1]))
         for i in range(ima.shape[-1]):
-            ima_pad[:,:,i]=np.pad(ima[:,:,i], pad_width=((pad_width, pad_width), (pad_width, pad_width)), mode='symmetric')  
+            ima_pad[:,:,i]=np.pad(ima[:,:,i], pad_width=((pw,pw),(pw,pw)),mode='symmetric')  
     elif ima.ndim==2:
-        ima_pad=np.pad(ima, pad_width=((pad_width, pad_width), (pad_width, pad_width)), mode='symmetric')
-    return ima_pad,pad_width
+        ima_pad=np.pad(ima, pad_width=((pw, pw), (pw, pw)), mode='symmetric')
+    return ima_pad,pw
 
 def restore_ima(ima,zernikes,pd=0,low_f=0.2,noise='default',reg1=0.05,
                 reg2=1,cobs=32.4):
@@ -2028,7 +2031,7 @@ def simulate_jitter(ima,sigmax,sigmay,plate_scale,Nacc):
 
     print('Computing the jittered image')
     #We add individual shifted images to simulate jitter
-    for i in tqdm(range(Nacc)):
+    for i in range(Nacc):
         ima_shift+=sf.subpixel_shift(IMA,x[i],y[i])
     ima_shift=ima_shift/Nacc
     return ima_shift,rms_x,rms_y
