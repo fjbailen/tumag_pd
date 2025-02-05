@@ -41,7 +41,7 @@ Jmax=22# 16 or 22.Maximum index of the zernike polynomials
 Jmin=4 #Minimum index of the zernike polynomials
 magnif=2.47 #Magnification factor of TuMag
 plate_scale= 0.0378 #Plate scale in arcseconds (arcsec/pixel)
-
+dx=10 #To avoid edges when computing the contrast
 
 #Region to be subframed for plotting purposes
 x0=400#600 #Initial pixel of the subframe in X direction
@@ -83,7 +83,7 @@ contrast=np.zeros(ind2-ind1)
 i=-1
 for ind in range(ind1,ind2):
     i+=1
-    contrast[i]=100*np.std(ima[:,:,ind])/np.mean(ima[:,:,ind])
+    contrast[i]=100*np.std(ima[dx:-dx,dx:-dx,ind])/np.mean(ima[dx:-dx,dx:-dx,ind])
 
 
 ind_vec=np.arange(ind1,ind2)
@@ -151,7 +151,8 @@ for i in range(2):
                     0*sigma[i,:],a_aver,a_d,cobs=cobs,low_f=low_f,
                     wind=True,reg1=reg1,reg2=reg2)
     ima_series[:,:,i]=o_plot[cut:-cut,cut:-cut] 
-    contrast_rest[i]=100*np.std(ima_series[:,:,i])/np.mean(ima_series[:,:,i])
+    contrast_rest[i]=100*np.std(ima_series[dx:-dx,dx:-dx,i])\
+        /np.mean(ima_series[dx:-dx,dx:-dx,i])
 
 
 #Plots
@@ -164,23 +165,23 @@ fig2,axs2=plt.subplots(3,2)
 
 #Plot only the sunspot
 axs[0,0].imshow(ima[x0:xf,y0:yf,0],cmap=cmap,vmin=vmin,vmax=vmax)
-axs[0,0].set_title('Lowest contrast')
-axs[0,0].set_ylabel('Before restoration')
+axs[0,0].set_title('Lowest contrast',fontsize=11)
+axs[0,0].set_ylabel('Before restoration',fontsize=11)
 axs[1,0].imshow(ima_series[x0:xf,y0:yf,0],cmap=cmap,vmin=vmin,vmax=vmax)
-axs[1,0].set_ylabel('WFE correction')
+axs[1,0].set_ylabel('WFE correction',fontsize=11)
 axs[0,1].imshow(ima[x0:xf,y0:yf,1],cmap=cmap,vmin=vmin,vmax=vmax)
-axs[0,1].set_title('Highest contrast')
+axs[0,1].set_title('Highest contrast',fontsize=11)
 axs[1,1].imshow(ima_series[x0:xf,y0:yf,1],cmap=cmap,vmin=vmin,vmax=vmax)
 pf.remove_tick_labels(axs)
 
 #Plot the full image
 axs2[0,0].imshow(ima[:,:,0],cmap=cmap,vmin=vmin,vmax=vmax)
-axs2[0,0].set_title('Lowest contrast')
-axs2[0,0].set_ylabel('Before restoration')
+axs2[0,0].set_title('Lowest contrast',fontsize=11)
+axs2[0,0].set_ylabel('Before restoration',fontsize=11)
 axs2[1,0].imshow(ima_series[:,:,0],cmap=cmap,vmin=vmin,vmax=vmax)
-axs2[1,0].set_ylabel('WFE correction')
+axs2[1,0].set_ylabel('WFE correction',fontsize=11)
 axs2[0,1].imshow(ima[:,:,1],cmap=cmap,vmin=vmin,vmax=vmax)
-axs2[0,1].set_title('Highest contrast')
+axs2[0,1].set_title('Highest contrast',fontsize=11)
 axs2[1,1].imshow(ima_series[:,:,1],cmap=cmap,vmin=vmin,vmax=vmax)
 pf.remove_tick_labels(axs2)
 
@@ -189,9 +190,9 @@ for i in range(2):
     for j in range(2):
          tx=axs2[i,j].text(100, 100, '', fontsize=15, va='top',color='white')
          if i==0 and j==0:
-             cont1=contrast[ind_low]
+             cont1=contrast[ind_low-ind1]
          elif i==0 and j==1:
-             cont1=contrast[ind_high]
+             cont1=contrast[ind_high-ind1]
          else:
             cont1=contrast_rest[j]
          tx.set_text('%g'%np.round(cont1,1)+r'$\,\%$')
@@ -213,7 +214,8 @@ for i in range(2):
                     sigma[i,:],a_aver,a_d,cobs=cobs,low_f=low_f,
                     wind=True,reg1=reg1,reg2=reg2)
     ima_series[:,:,i]=o_plot[cut:-cut,cut:-cut] 
-    contrast_rest[i]=100*np.std(ima_series[:,:,i])/np.mean(ima_series[:,:,i])
+    contrast_rest[i]=100*np.std(ima_series[dx:-dx,dx:-dx,i])/\
+        np.mean(ima_series[dx:-dx,dx:-dx,i])
 
     #Plot radial MTF
     radial_noise=pdf.radial_profile(noise_filter, [xc,xc])

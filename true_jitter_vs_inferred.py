@@ -25,7 +25,7 @@ cobs=32.4 #Diameter of central obscuration as a percentage of the aperture
 N=256 #Number of pixels (Cadence simulatin)
 plate_scale=0.055 #Plate scale of the simulations in arcseconds (arcsec/pixel)
 sigma_max=0.15 #Maximum value of the jitter in arcsec
-Nsigma=1000 #Number of simulations with different jitter amplitude
+Nsigma=50 #Number of simulations with different jitter amplitude
 sigma=np.random.uniform(0,sigma_max,Nsigma) #RMS values of jitter in arcsec
 Nacc=1000 #Number of accumulated images
 pref='52502' #'517', '52502' or '52506'. Prefilter employed
@@ -55,6 +55,7 @@ Different levels of jitter
 """
 rms_true=[]
 rms_inferred=[]
+contrast_true=[]
 for sig in tqdm(sigma):
     #RMS of jitter along X and Y direction (px)
     sigmax=sig 
@@ -65,6 +66,7 @@ for sig in tqdm(sigma):
                                           plate_scale,Nacc)
     rms=np.sqrt(rms_x**2+rms_y**2)
     rms_true.append(rms)
+
     #Apply the telescope diffraction
     ima=pdf.convPSF(ima0,aberr,0,RHO,THETA,ap,norm=True)
     ima_shift=pdf.convPSF(ima_shift,aberr,0,RHO,THETA,ap,norm=True)
@@ -72,6 +74,8 @@ for sig in tqdm(sigma):
         NSR=1/SNR
         ima=pdf.gaussian_noise(NSR,ima)
         ima_shift=pdf.gaussian_noise(NSR,ima_shift)
+    contrast_value=np.std(ima_shift)/np.mean(ima_shift)
+    contrast_true.append(contrast_value)
 
     #Infer the jitter
     cut=int(0.1*N)
@@ -79,8 +83,9 @@ for sig in tqdm(sigma):
     ima_array[:,:,0]=ima
     ima_array[:,:,1]=ima_shift
     Ok,gamma,wind,susf=pdf.prepare_PD(ima_array,nuc,N)
-    sigma=pdf.minimization_jitter(Ok,gamma,plate_scale,nuc,N,cut=cut)
-    rms_inferred.append(np.linalg.norm(sigma))
+    sigma=pdf.minimization_jitter(Ok,gamma,plate_scale,nuc,N,cut=cut,
+                                  print_res=False)
+    rms_inferred.append(np.linalg.norm(sigma[:2]))
 
 """
 Save in npy file and plot
@@ -98,10 +103,17 @@ xlabel=r'$\sigma_{\rm true}$ [arcsec]'
 ylabel=r'$\sigma_{\rm inferred}$ [arcsec]'
 #pf.plot_scatter_density(rms_true,rms_inferred,xlabel,ylabel)
 
-
+#Plot jitter inferred against true one
 fig,axs=plt.subplots()
 axs.scatter(rms_true,rms_inferred)
 axs.set_xlabel(xlabel)
+axs.set_ylabel(ylabel)
+
+
+#Plot jitter inferred against contrast of the jittered image
+fig,axs=plt.subplots()
+axs.scatter(100*contrast_true,rms_inferred)
+axs.set_xlabel('Contrast (%)')
 axs.set_ylabel(ylabel)
 plt.show()
 

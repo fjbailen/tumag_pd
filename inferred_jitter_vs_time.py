@@ -19,9 +19,9 @@ plt.rcParams['figure.constrained_layout.use'] = True #For the layout to be as ti
 
 
 #Parameters of input data
-Nrepeat=1 #Number of repetitions for each jitter amplitude
-sigmax=0.05 #RMS of jitter along X in arcsec
-sigmay=0.05 #RMS of jitter along Y in arcsec
+Nrepeat=100 #Number of repetitions for each jitter amplitude
+sigmax=0 #RMS of jitter along X in arcsec
+sigmay=0 #RMS of jitter along Y in arcsec
 SNR=100 #Signal-to-noise ratio. 0 if no noise is to be applied
 print_res=False #If True, it prints the results for each optimization
 cobs=32.4 #Diameter of central obscuration as a percentage of the aperture
@@ -29,7 +29,7 @@ cobs=32.4 #Diameter of central obscuration as a percentage of the aperture
 N=256 #Number of pixels (Cadence simulatin)
 plate_scale=0.055 #Plate scale of the simulations in arcseconds (arcsec/pixel)
 Ntime=40 #Number of seconds of the simulation (max: 40)
-Nacc=1000 #Number of accumulated images
+Nacc=1000 #Number of accumulated images. Increase to avoid outliers in rms_error vs time
 pref='52502' #'517', '52502' or '52506'. Prefilter employed
 wvl,fnum,Delta_x=pdf.tumag_params(pref=pref)
 nuc,R=pdf.compute_nuc(N,wvl,fnum,Delta_x)
@@ -60,11 +60,13 @@ ima0=ima0.astype('float64')
 Different levels of jitter
 """
 rms_error=[] #Norm of the difference between the true and inferred sigma_x and sigma_y
+std_rms_error=np.zeros(Ntime) #STD of the rms_error for Nrepeat
 corr_error=[] #Error of correlation of jitter between X and Y (rho_xy)
 
 sigma_vec=np.array([sigmax,sigmay,0]) 
 for i in tqdm(range(Ntime)):
-    sigma_values=np.zeros(3)
+    sigma_values=np.zeros((3,Nrepeat))
+    sigma_error=np.zeros(Nrepeat)
     for j in range(Nrepeat):
         #Jittered image
         ima2=data[:N,:N,i]
@@ -72,11 +74,17 @@ for i in tqdm(range(Ntime)):
         ima2=ima2.astype('float64')
 
         #Simulate the image affected by jitter with sigmax and sigmay
-        ima_shift,rms_x,rms_y=pdf.simulate_jitter(ima2,sigmax,sigmay,
-                                            plate_scale,Nacc)
+        if sigmax>0 or sigmay>0:
+            ima_shift,rms_x,rms_y=pdf.simulate_jitter(ima2,sigmax,sigmay,
+                                                plate_scale,int(Nacc))
+        else:
+            ima_shift=ima2
+            rms_x=0
+            rms_y=0   
         rms=np.sqrt(rms_x**2+rms_y**2)
         rms_vec=np.array([rms_x,rms_y,0]) #3rd dimension:correlation between x and y
-        #Apply the telescope diffraction
+        
+        #Apply the telescope diffraction and noise
         ima=pdf.convPSF(ima0,aberr,0,RHO,THETA,ap,norm=True)
         ima_shift=pdf.convPSF(ima_shift,aberr,0,RHO,THETA,ap,norm=True)
         if SNR>0:
@@ -92,27 +100,33 @@ for i in tqdm(range(Ntime)):
         Ok,gamma,wind,susf=pdf.prepare_PD(ima_array,nuc,N)
         sigma=pdf.minimization_jitter(Ok,gamma,plate_scale,nuc,
                                       N,cut=cut,print_res=print_res)
-        sigma_values+=sigma
-    sigma_values=sigma_values/Nrepeat    
-    rms_error.append(np.linalg.norm(sigma_values[:1]-sigma_vec[:1]))
+        sigma_values[:,j]=sigma
+        sigma_error[j]=np.linalg.norm(sigma_values[:2,j]-rms_vec[:2])
+    sigma_mean=np.mean(sigma_values[:2,:],axis=1) 
+    rms_error.append(np.mean(sigma_error))
+    std_rms_error[i]=np.std(sigma_error)
     corr_error.append(sigma_values[2]-sigma_vec[2])
-    #print('True sigma:',sigma_vec)
-    #print('Inferred sigma:',sigma_values)
-    #print('RMS error:',rms_error)
+    #print('Inferred sigma:',sigma_values[:2,:])
+    #print('Mean error:',np.mean(sigma_error))
+    #print('STD error:',np.std(sigma_error))
 
-
+   
 
 """
 Save in npy file and plot
 """
 time=np.arange(0,Ntime)
-rms_array=np.zeros((Ntime,2))
+rms_array=np.zeros((Ntime,3))
 rms_array[:,0]=time
 rms_array[:,1]=rms_error
+rms_array[:,2]=std_rms_error
 fname="jitter_error_vs_time_rms_%g_arcsec_Njit_%g_SNR_%g.npy"%(sigmax,Ntime,SNR)
 np.save(fname, rms_array)
 test=np.load(fname)
 print(test)
+
+
+
 
 #Plot norm of the error of sigma_x and sigma_y
 xlabel='Time (s)'

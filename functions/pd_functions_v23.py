@@ -39,6 +39,8 @@ Changes with respect to pd_functions_v21
 to be adjusted between two images: one with and another one without jitter.
 - Default parameters (N, R, nuc, etc.) are no longer set as default, but
 introduced by the user or computed within a function 
+
+
 """
 #from skimage.morphology import square, erosion
 from matplotlib import pyplot as plt

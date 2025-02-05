@@ -195,16 +195,18 @@ av=np.delete(av, index_ceros, axis=1)
 fig18,ax18=plt.subplots()
 ax18.imshow(av,cmap='seismic',vmin=-0.35,vmax=0.35)
 
-#Average zernike coefficients and wavefront
+#Average zernike coefficients 
 a_aver=np.mean(av,axis=1)
-
-
 a_rms=np.std(av,axis=1)
 norm_aver=2*np.pi/np.linalg.norm(a_aver)
 norm_aver2=2*np.pi/np.linalg.norm(a_aver[4:]) #To exclude tip/tilt and defocus
-print('WFE RMS:lambda/',np.round(norm_aver,2))
+print('Norm of Zernikes: lambda/',np.round(norm_aver,2))
+
+#Wavefront error
 wavef_aver=pdf.wavefront(a_aver,0,RHO,THETA,ap,R,N)
-#print(a_aver)
+rms_wave=np.std(wavef_aver[np.nonzero(wavef_aver)]) #To avoid zeros when computing the RMS
+print('RMS WFE: lambda/',np.round(2*np.pi/rms_wave,2))
+
 
 for i in range(len(a_aver)):
     print(np.round(a_aver[i],4))

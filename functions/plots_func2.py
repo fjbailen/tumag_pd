@@ -1,5 +1,5 @@
 from matplotlib import pyplot as plt
-import pd_functions_v21 as pdf
+import pd_functions_v22 as pdf
 import numpy as np
 from matplotlib.animation import FFMpegWriter, FuncAnimation
 from scipy.stats import gaussian_kde
@@ -202,25 +202,6 @@ def movie3(im1,im2,filename,axis=2,fps=15,title=['',''],cmap='gray',
         axs["contrast"].set_ylabel('Contrast [%]')
         axs["contrast"].set_xlabel('Frame index')
 
-        #Print mean and rms of the contrast over the series
-        #im1
-        contrast1=np.zeros(n)
-        for i in range(n):
-            contrast1[i]=100*np.std(im1[x0:xf,y0:yf,i])/np.mean(im1[x0:xf,y0:yf,i])
-        mean_contrast1=np.round(np.mean(contrast1),3)
-        std_contrast1=np.round(np.std(contrast1),3)    
-        print('Mean contrast for im1:',mean_contrast1)
-        print('STD contrast for im1:',std_contrast1)
-
-        #im2
-        contrast2=np.zeros(n)
-        for i in range(n):
-            contrast2[i]=100*np.std(im2[x0:xf,y0:yf,i])/np.mean(im2[x0:xf,y0:yf,i])
-        mean_contrast2=np.round(np.mean(contrast2),3)
-        std_contrast2=np.round(np.std(contrast2),3)    
-        print('Mean contrast for im2:',mean_contrast2)
-        print('STD contrast for im2:',std_contrast2)
-
     #Refresh frames
     def animate(i):
         print('Rendering frame:',i)
@@ -243,6 +224,91 @@ def movie3(im1,im2,filename,axis=2,fps=15,title=['',''],cmap='gray',
     ani = FuncAnimation(fig, animate, frames=n, repeat=False)
     ani.save('./'+filename, writer=writer)
     plt.close()    
+
+def movie13(im0,im1,im2,filename,axis=2,fps=15,title=['',''],cmap='gray',
+           contrast='full'):
+    """
+    Movie of three 3D images
+        im1, im2: 3D images
+        filename: name of the file for the movie
+        axis: axis along the series
+        fps: frames per second
+        title: titles for the images
+        cmap: colormap
+        contrast: 'full' for computing contrast over the whole image,
+                  'corner' for computing contrast over a corner
+    """
+    
+
+    metadata = dict(title='TuMag jitter correction', artist='F.J. Bailen et al. (2025)',
+                comment='')
+    writer = FFMpegWriter(fps=fps, metadata=metadata,bitrate=15000)
+    n=im1.shape[axis] #Number of frames
+    Nx=im1.shape[0]
+    fig,axs = plt.subplots(1,3,layout='constrained')
+    fig.set_figheight(6)
+    fig.set_figwidth(15)
+   
+    min1=np.min(im0)
+    max1=np.max(im0)
+    min2=np.min(im2)
+    max2=np.max(im2)
+    min=1.05*np.min((min1,min2))
+    max=0.95*np.max((max1,max2))
+    #To use colorbars
+    if axis==2:
+        axs[0].imshow(im0[:,:,0],cmap=cmap,vmin=min,vmax=max)
+        axs[0].set_title(title[0])
+        axs[1].imshow(im1[:,:,0],cmap=cmap,vmin=min,vmax=max)
+        axs[1].set_title(title[1])
+        axs[2].imshow(im2[:,:,0],cmap=cmap,vmin=min,vmax=max)
+        axs[2].set_title(title[2])
+        txframe=axs[0].text(50,50, '', fontsize=15, va='top',color='white')
+        tx0=axs[0].text(Nx-250,50, '', fontsize=15, va='top',color='white')
+        tx1=axs[1].text(Nx-250,50, '', fontsize=15, va='top',color='white')
+        tx2=axs[2].text(Nx-250,50, '', fontsize=15, va='top',color='white')
+        remove_tick_labels(axs)
+
+        #Contrast plot settings
+        xmax=n+0.05
+        dx=10 #To avoid edges when computing the contrast
+
+        if contrast=='full':
+            x0=dx
+            xf=-dx
+            y0=x0
+            yf=xf
+        elif contrast=='corner':
+            x0=dx
+            xf=dx+400
+            y0=x0
+            yf=xf   
+        cont0=np.round(100*np.std(im0[x0:xf,y0:yf,0])/np.mean(im0[x0:xf,y0:yf,0]),1)    
+        cont1=np.round(100*np.std(im1[x0:xf,y0:yf,0])/np.mean(im1[x0:xf,y0:yf,0]),1)
+        cont2=np.round(100*np.std(im2[x0:xf,y0:yf,0])/np.mean(im2[x0:xf,y0:yf,0]),1)
+    #Refresh frames
+    def animate(i):
+        print('Rendering frame:',i)
+        if axis==2:
+            #Compute contrasts
+            cont0=np.round(100*np.std(im0[x0:xf,y0:yf,i])/np.mean(im0[x0:xf,y0:yf,i]),1)
+            cont1=np.round(100*np.std(im1[x0:xf,y0:yf,i])/np.mean(im1[x0:xf,y0:yf,i]),1)
+            cont2=np.round(100*np.std(im2[x0:xf,y0:yf,i])/np.mean(im2[x0:xf,y0:yf,i]),1)
+           
+            #Plots
+            axs[0].imshow(im0[:,:,i],cmap=cmap,vmin=min,vmax=max)
+            axs[1].imshow(im1[:,:,i],cmap=cmap,vmin=min,vmax=max)
+            axs[2].imshow(im2[:,:,i],cmap=cmap,vmin=min,vmax=max)
+            tx0.set_text('%g'%cont0+r'$\,\%$')
+            tx1.set_text('%g'%cont1+r'$\,\%$')
+            tx2.set_text('%g'%cont2+r'$\,\%$')
+            txframe.set_text('Frame #%g'%(i+1))
+    
+    ani = FuncAnimation(fig, animate, frames=n, repeat=False)
+    ani.save('./'+filename, writer=writer)
+    plt.close()         
+
+        
 
 def plot_scatter_density(x,y,xlabel='',ylabel=''):
     """
@@ -271,3 +337,31 @@ def remove_tick_labels(axs):
     for ax in axs.flatten():
         ax.set_xticklabels([])
         ax.set_yticklabels([])
+
+def contrast_along_series(ima,ind1,ind2,region_contrast='full'):
+    """
+    Computes the contrast along a series of images
+        ima=3D image with dimensions (x,y,t)
+        ind1, ind2: initial and final image indices
+        contrast_region: 'full' for computing contrast over the whole image,
+                    'corner' for computing contrast over a corner
+    """
+    contrast=np.zeros(ind2-ind1)
+    i=-1
+    dx=10 #To avoid edges when computing the contrast
+
+    if region_contrast=='full':
+        x0=dx
+        xf=-dx
+        y0=x0
+        yf=xf
+    elif region_contrast=='corner':
+        x0=dx
+        xf=dx+400
+        y0=x0
+        yf=xf   
+    for ind in range(ind1,ind2):
+        i+=1
+        contrast[i]=100*np.std(ima[x0:xf,y0:yf,ind])/\
+        np.mean(ima[x0:xf,y0:yf,ind])
+    return contrast

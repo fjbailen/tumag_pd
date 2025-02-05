@@ -21,7 +21,7 @@ plt.rcParams['figure.constrained_layout.use'] = True
 Imports and plots the set of Zernike coefficients and
 the wavefront map over the different subfields.
 """
-region_contrast='corner' #Region to compute the contrast. 'full' or 'corner'.
+region_contrast='full' #Region to compute the contrast. 'full' or 'corner'.
 wfe_corrected_comparison=True #Restore the WFE of the jittered image?
 ind1=1#0 #First index of the series#
 ind2=70 #70#15#10 #Last index of the series
@@ -41,6 +41,9 @@ plate_scale= 0.0378 #Plate scale in arcseconds (arcsec/pixel)
 crop=False #If True, it crops the image using x0, xf, y0 and yf as limits
 x0=200 #200 or 400 #Initial pixel of the subframe in X direction
 xf=x0+1600 #900 or 1600 #Final pixel of the subframe in X direction
+
+
+
 y0=x0 #Initial pixel of the subframe in Y direction
 yf=xf  #FInal pixel of the subframe in Y direction
 
@@ -79,23 +82,24 @@ ima=pdf.read_crop_reorder(path,ext,cam,wave,modul,crop=False,
 
 
 
-#Plot jitter vs contrast
-contrast=np.zeros(ind2-ind1)
-i=-1
-dx=10 #To avoid edges when computing the contrast
-for ind in range(ind1,ind2):
-    i+=1
-    contrast[i]=100*np.std(ima[dx:-dx,dx:-dx,ind])/\
-    np.mean(ima[dx:-dx,dx:-dx,ind])
+
+
+
+#Plot jitter vs contrast for the original image
+contrast=pf.contrast_along_series(ima,ind1,ind2,region_contrast)
 sigma_rms=np.sqrt(sigma[ind1:ind2,0]**2+sigma[ind1:ind2,1]**2)
+mean_contrast1=np.round(np.mean(contrast),3)
+std_contrast1=np.round(np.std(contrast),3)    
+print('Mean contrast for original series:',mean_contrast1)
+print('STD contrast for original series:',std_contrast1)
 
 
 ind_vec=np.arange(ind1,ind2)
 fig,ax1=plt.subplots()
-plot1,=ax1.plot(ind_vec,contrast,'o',color='b')
+plot1,=ax1.plot(ind_vec,contrast,marker='o',color='b')
 ax1.set_ylabel(r'Contrast ($\%$)')
 ax2 = ax1.twinx()  
-plot2,=ax2.plot(ind_vec,sigma_rms,'o',color='r')
+plot2,=ax2.plot(ind_vec,sigma_rms,marker='o',color='r')
 ax2.set_ylabel(r'$\sigma$ (arcsec)')
 ax1.set_xlabel('Frame index')
 ax2.legend([plot1, plot2], ['Contrast', r'$\sigma$'],loc='upper left')
@@ -151,24 +155,43 @@ if ind2>ind1:
                     0*sigma[i,:],a_aver,a_d,cobs=cobs,low_f=low_f,wind=True,
                     reg1=reg1,reg2=reg2)
             ima[:,:,i]=o_plot[cut:-cut,cut:-cut] 
+            contrast=pf.contrast_along_series(ima,ind1,ind2,region_contrast)
       
         if j==0:
             vmin=np.min(ima_series[:,:,j])
             vmax=np.max(ima_series[:,:,j])
+        
+        #Plot first pair of images before and after jitter correction
+        if j==0:
+            fig,axs=plt.subplots(1,3)
+            axs[0].imshow(ima_pad[cut:-cut,cut:-cut,i],cmap='gray',vmin=vmin,vmax=vmax)
+            axs[0].set_title('Original')
+            axs[1].imshow(ima[:,:,ind1],cmap='gray',vmin=vmin,vmax=vmax)
+            axs[1].set_title('WFE corrected')
+            axs[2].imshow(ima_series[:,:,0],cmap='gray',vmin=vmin,vmax=vmax)
+            axs[2].set_title('WFE + jitter corrected')
+            pf.remove_tick_labels(axs)
+            #plt.show()
+            plt.close()
+
+
+      
     
-    #Plot contrasts
-    contrast2=np.zeros(ind2-ind1)
-    i=-1
-    for ind in range(ind1,ind2):
-        i+=1
-        contrast2[i]=100*np.std(ima_series[:,:,i])/np.mean(ima_series[:,:,i])
+    #Compute contrast for restored image and plot contrasts
+    contrast2=pf.contrast_along_series(ima_series,0,ind2-ind1,region_contrast)
+    mean_contrast2=np.round(np.mean(contrast2),3)
+    std_contrast2=np.round(np.std(contrast2),3)    
+    print('Mean contrast for original series:',mean_contrast2)
+    print('STD contrast for original series:',std_contrast2)
     fig,ax1=plt.subplots()
-    ax1.plot(ind_vec,contrast,'o',color='b',label='Original')
-    ax1.plot(ind_vec,contrast2,'o',color='r',label='Restored')
+    ax1.plot(ind_vec,contrast,marker='o',color='b',label='WFE corrected')
+    ax1.plot(ind_vec,contrast2,marker='o',color='r',label='WFE+jitter corrected')
     ax1.set_ylabel(r'Contrast ($\%$)')
-    ax1.legend()
+    ax1.set_xlabel(r'Frame #')
+    ax1.legend(loc='upper right')
     plt.show()
     plt.close()
+    quit()
 
     #Plot contrast of restored image and jitter along the series
     fig,ax1=plt.subplots()
@@ -180,6 +203,7 @@ if ind2>ind1:
     fig.legend()
     #plt.show()
     plt.close()
+ 
 
     #Plot contrast of restored image vs jitter
     fig,axs=plt.subplots()
@@ -190,9 +214,14 @@ if ind2>ind1:
     #plt.show()
     plt.close()
 
-    pf.movie3(ima[:,:,ind1:ind2],ima_series,'Icont_comparison_'+fname+'.mp4',
-              axis=2,fps=fps,title=['Jittered','Jitter free'],
-              contrast=region_contrast)
+    pf.movie13(ima_pad[cut:-cut,cut:-cut,ind1:ind2],ima[:,:,ind1:ind2],
+                ima_series,'Movie_paper_'+fname+'.mp4',
+                axis=2,fps=fps,title=['Original','WFE corrected',
+                                      'WFE + jitter corrected'],
+                contrast=region_contrast)
+    #pf.movie3(ima[:,:,ind1:ind2],ima_series,'Icont_comparison_'+fname+'.mp4',
+    #          axis=2,fps=fps,title=['Jittered','Jitter free'],
+    #          contrast=region_contrast)
 
 
 #Print jitter
