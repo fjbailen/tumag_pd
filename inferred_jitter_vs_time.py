@@ -67,12 +67,12 @@ sigma_vec=np.array([sigmax,sigmay,0])
 for i in tqdm(range(Ntime)):
     sigma_values=np.zeros((3,Nrepeat))
     sigma_error=np.zeros(Nrepeat)
-    for j in range(Nrepeat):
-        #Jittered image
-        ima2=data[:N,:N,i]
-        ima2=ima2/np.mean(ima2[:256,:256]) #Normalize only by QS mean intensity
-        ima2=ima2.astype('float64')
 
+    #Jittered image
+    ima2=data[:N,:N,i]
+    ima2=ima2/np.mean(ima2[:256,:256]) #Normalize only by QS mean intensity
+    ima2=ima2.astype('float64')
+    for j in range(Nrepeat):
         #Simulate the image affected by jitter with sigmax and sigmay
         if sigmax>0 or sigmay>0:
             ima_shift,rms_x,rms_y=pdf.simulate_jitter(ima2,sigmax,sigmay,
@@ -84,7 +84,7 @@ for i in tqdm(range(Ntime)):
         rms=np.sqrt(rms_x**2+rms_y**2)
         rms_vec=np.array([rms_x,rms_y,0]) #3rd dimension:correlation between x and y
         
-        #Apply the telescope diffraction and noise
+        #Apply the telescope diffraction and noise to the jitter-free and jittered images
         ima=pdf.convPSF(ima0,aberr,0,RHO,THETA,ap,norm=True)
         ima_shift=pdf.convPSF(ima_shift,aberr,0,RHO,THETA,ap,norm=True)
         if SNR>0:

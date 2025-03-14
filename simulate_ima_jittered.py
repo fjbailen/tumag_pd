@@ -1,6 +1,6 @@
 """
 This function reads an MHD simulation and simulates the presence of jitter
-of a given amplitude.
+of a given amplitude and infers it using minimization_jitter.
 """
 from PIL import Image as im
 import numpy as np
@@ -90,13 +90,13 @@ Infer the jitter and restore the image
 """
 cut=int(0.1*N)
 Ok,gamma,wind,susf=pdf.prepare_PD(ima_array,nuc,N)
-#sigma=pdf.minimization_jitter(Ok,gamma,plate_scale,nuc,N,cut=cut)
-sigma=np.array([rms_x,rms_y,0])
+sigma=pdf.minimization_jitter(Ok,gamma,plate_scale,nuc,N,cut=cut)
+#sigma=np.array([rms_x,rms_y,0])
 print('Inferred sigma (arcsec):\n',sigma)
 #print('Sigma (px units):',sigma/plate_scale)
 print('True sigma (arcsec):',rms_x,rms_y)
 
-
+quit()
 
 #Restore jittered image
 ima_pad,pad_width=pdf.padding(ima_shift)

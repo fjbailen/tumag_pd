@@ -5,6 +5,7 @@ import numpy as np
 from astropy.io import fits
 from scipy.io import readsav
 from scipy.interpolate import interp1d
+import datetime as dt
 sys.path.append('../')
 
 def create_folder(savefold):
@@ -115,3 +116,36 @@ def gaussian_noise(SNR,image):
     gauss = gauss.reshape(row,col)
     noisy = image + gauss
     return noisy
+
+def read_times(hdr,ind1,ind2):
+    """
+    Read time from the headers of the FITS files
+    Input:
+        hdr: FITS headers
+        ind1: Initial index of the series
+        ind2: Final index of the series
+    Output:
+        time_vector: Time vector in datetime format
+    """
+    time_vector=[]
+    for i in range(ind1,ind2):
+        time_str = hdr['Time_%g' % i]
+        time_dt = dt.datetime.strptime(time_str, '%Y-%m-%dT%H:%M:%S.%f')
+        #time_label = time_dt.strftime('%Y-%m-%d %H:%M:%S.%f')
+        time_vector.append(time_dt)
+    return time_vector
+
+def compute_seconds(time_vector,t0):
+    """
+    Compute time from the initial time in seconds
+    Input:
+        time_vector: Time vector in datetime format
+        t0: Initial time of the series
+    Output:
+        time_vector: Time vector in seconds
+    """
+    time_vector=np.array(time_vector)
+    time_vector=time_vector-t0
+    time_vector=time_vector.astype('timedelta64[s]').astype(float)
+    return time_vector
+

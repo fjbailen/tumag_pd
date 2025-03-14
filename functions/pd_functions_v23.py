@@ -40,6 +40,8 @@ to be adjusted between two images: one with and another one without jitter.
 - Default parameters (N, R, nuc, etc.) are no longer set as default, but
 introduced by the user or computed within a function 
 
+Changes with respect to pd_functions_v22
+- Jitter is adjusted for both images in the merit function
 
 """
 #from skimage.morphology import square, erosion
@@ -389,8 +391,10 @@ def OTF_jitt(sigma,plate_scale,N,norm=None):
     model of Fiete 2019 (Eq. 19)
     Input:
         sigma: vector with the rms of jitter in x,y (in arcsec)
-                and its correlation (sigma_x,sigma_y,sigma_xy). The correlation factor
-                "sigma_xy" goes from -1 to 1 and is equivalent to rho_xy in Fiete (2019).
+                and its correlation for the two images
+                (sigma_x1,sigma_y1,rho_xy1,sigma_x2,sigma_y2,rho_xy2).
+                  The correlation factor
+                "rho_xy" goes from -1 to 1 and is equivalent to rho_xy in Fiete (2019).
         plate_scale: plate scale in arcsec/pixel
         norm:{None,True}, optional. 'True' for normalization purpose. Default
                 is None
@@ -410,9 +414,10 @@ def OTF_jitt(sigma,plate_scale,N,norm=None):
 
     #OTF_jitter model for the jitter-free and the jitter-affected images
     otf_jitt=np.zeros((N,N,2))
-    otf_jitt[:,:,0]=np.ones((N,N))
-    otf_jitt[:,:,1]=np.exp(-2*np.pi**2*(NU**2*sigma[0]**2+ETA**2*sigma[1]**2+\
+    otf_jitt[:,:,0]=np.exp(-2*np.pi**2*(NU**2*sigma[0]**2+ETA**2*sigma[1]**2+\
                                         2*NU*ETA*sigma[0]*sigma[1]*sigma[2]))
+    otf_jitt[:,:,1]=np.exp(-2*np.pi**2*(NU**2*sigma[3]**2+ETA**2*sigma[4]**2+\
+                                        2*NU*ETA*sigma[3]*sigma[4]*sigma[5]))
     
     if norm==True:
         norma=np.max(np.abs(otf_jitt)[:])
@@ -1283,11 +1288,12 @@ def minimization_jitter(Ok,gamma,plate_scale,nuc,N,cut=None,print_res=True):
 
     meth='Nelder-Mead'#'L-BFGS-B' or 'Nelder-Mead'
     opt={'ftol':1e-15,'gtol':1e-14} #Options for L-BFGS-B method
-    minim=scipy.optimize.minimize(merit_func,[0,0,0],method=meth,#options=opt,
-                                  bounds=((0,None),(0,None),(-.9999,0.9999)))
+    bnds=((0,None),(0,None),(-.9999,0.9999),(0,None),(0,None),(-.9999,0.9999))
+    minim=scipy.optimize.minimize(merit_func,[0,0,0,0,0,0],method=meth,#options=opt,
+                                  bounds=bnds)
     if print_res is True:
         print(minim)
-    return minim.x#np.array([minim.x]).T #To return an array consisting of 1 column
+    return minim.x #To return an array consisting of 1 column
 
 
 def minimization_jitter2(Ok,gamma,plate_scale,nuc,N,sigma0,cut=None,print_res=True):

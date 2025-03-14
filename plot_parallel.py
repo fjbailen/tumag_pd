@@ -8,14 +8,15 @@ import numpy as np
 import math_func2 as mf
 import pd_functions_v22 as pdf
 from scipy.fftpack import fftshift, ifftshift, fft2, ifft2
-plt.rcParams['figure.constrained_layout.use'] = True #For the layout to be as tight as possible
+plt.rcParams['figure.constrained_layout.use'] = True #Tight layout for plots
 
 """
 Imports and plots the set of Zernike coefficients and
 the wavefront map over the different subfields.
 """
-date='12_7_9_23' #Date to find the name of the files
+date='10_7_17_19' #Date to find the name of the files
 pref='517' #'517', '52502' or '52506'. Prefilter employed 
+mode='1' #'1', '2.02' #Observation mode
 Nima=1 #1, 39 #Number of images in the series to be considered
 N=300 #Dimension of the subpatches to run PD on
 realign=False #Realign focused-defocused image with pixel accuracy?
@@ -46,10 +47,8 @@ yf=y0+900  #FInal pixel of the subframe in Y direction
 #Path and name of the FITS file containing the focused and defocused images
 ext='.fits' #Format of the images to be opened (FITS)
 dir_folder='./' #Path of the folder containing the FITS file
-#ffolder='Flight/15_7_9_23/'+pref #Name of the folder containing th FITS file
-#fname='PD_cam_%g_ima_%g'%(cam,Nima) #Name of the FITS file
 ffolder='Flight/'+date #Name of the folder containing th FITS file
-fname='PD_'+date+'_cam_%g_%g_ima_%g'%(cam,int(pref),Nima) #Name of the FITS file
+fname='PD_'+date+'_mode_'+mode+'_cam_%g_ima_%g'%(cam,Nima)#'PD_'+date+'_cam_%g_%g_ima_%g'%(cam,int(pref),Nima) #Name of the FITS file
 txtfolder=dir_folder +'txt'+ '/' + fname #Path of the txt files
 
 #Colormap limits for wavefront representation

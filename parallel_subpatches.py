@@ -18,12 +18,13 @@ plt.rcParams["image.interpolation"] = 'none'
 """
 Input parameters
 """
-date='12_7_9_23'
+check_image=False #Check the image before running the PD analysis
+date='10_7_17_19'
 pref='517' #'517', '52502' or '52506'. Prefilter employed
-Nima=1 #Number of images in the series
+mode='1' #'1', '2.02' #Observation mode
+Nima=1 #1 or 39 #Number of images in the series
 cam=0 #Cam 0 or cam 1
-check_image=False
-realign=False #Realign focused-defocused image with pixel accuracy?
+realign=False #Realign focused-defocused image with pixel accuracy along the series?
 N=300 #Dimension of the subpatches to run PD on
 cobs=32.4 #18.5 (MPS) 32.4 (Sunrise) #Diameter of central obscuration as a percentage of the aperture
 n_cores=16 #Number of cores of the PC to be employed for parallelization
@@ -33,7 +34,7 @@ nuc,R=pdf.compute_nuc(N,wvl,fnum,Delta_x)
 #Path and name of the FITS file containing the focused and defocused images
 dir_folder='./' #Path of the folder containing the FITS file
 ffolder='Flight/'+date #Name of the folder containing th FITS file
-fname='PD_'+date+'_cam_%g_%g_ima_%g'%(cam,int(pref),Nima) #Name of the FITS file
+fname='PD_'+date+'_mode_'+mode+'_cam_%g_ima_%g'%(cam,Nima) #'PD_'+date+'_cam_%g_%g_ima_%g'%(cam,mode,Nima) #Name of the FITS file
 ext='.fits' #Format of the images to be opened (FITS)
 output=fname+'/' #Name of output folder to save txt files
 optimization='linear' #'linear' (SVD) or 'lbfgs'
@@ -86,6 +87,7 @@ else:
 """
 Read image
 """
+print('File path:',dir_folder+ffolder+'/'+fname)
 ima=pdf.read_image(dir_folder+ffolder+'/'+fname,ext,norma='no')
 ima=np.nan_to_num(ima, nan=0, posinf=0, neginf=0)
 ima=ima.astype("float32") #Change to float 32
@@ -116,10 +118,11 @@ if ima.ndim==4:
 
 
 #Realign images of the series
+ima0=ima #Image before alignment
 #ima_aligned=0*ima
 #ima_aligned[0,:,:,:]=ima[0,:,:,:]
 if realign is True:
-    kappa=20
+    kappa=100
     for j in range(2):#F4/PD
         print('Re-aligning images with index %g'%j)
         Gshift=fft2(ima[0,:,:,j])
@@ -132,7 +135,7 @@ if realign is True:
             #[i,:,:,j]=np.roll(ima[i,:,:,j],(deltax,deltay),axis=(0,1))
             ima[i,:,:,j]=np.real(ifft2(Gshift))
             print('Delta x, Delta y (pixels):',row_shift,col_shift)
-    #pf.movie2(ima[:,:,:,0],ima[:,:,:,0],'prueba.mp4',axis=0,fps=5)
+    pf.movie2(ima0[:,:350,:350,0],ima[:,:350,:350,0],'prueba.mp4',axis=0,fps=5)
 ima=np.mean(ima,axis=0) #Sum all images over the series
 
 

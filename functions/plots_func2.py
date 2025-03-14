@@ -225,11 +225,11 @@ def movie3(im1,im2,filename,axis=2,fps=15,title=['',''],cmap='gray',
     ani.save('./'+filename, writer=writer)
     plt.close()    
 
-def movie13(im0,im1,im2,filename,axis=2,fps=15,title=['',''],cmap='gray',
+def movie13(im0,im1,im2,filename,axis=2,fps=15,title=['','',''],cmap='gray',
            contrast='full'):
     """
     Movie of three 3D images
-        im1, im2: 3D images
+        im0, im1, im2: 3D images
         filename: name of the file for the movie
         axis: axis along the series
         fps: frames per second

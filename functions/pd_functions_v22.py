@@ -68,16 +68,22 @@ except:
 
 
 def tumag_params(pref='52502'):
-    #Wavelength [m]
-    if pref=='52502':
-        wvl=525.02e-9 
-    elif pref=='52506':
-        wvl=525.06e-9 
-    elif pref=='517':
-        wvl=517.3e-9        
-    fnum=60 # f-number
-    Delta_x=11e-6 ##Size of the pixel [m]
-    return wvl,fnum,Delta_x
+    try:
+        #Wavelength [m]
+        if pref=='52502':
+            wvl=525.02e-9 
+        elif pref=='52506':
+            wvl=525.06e-9 
+        elif pref=='517':
+            wvl=517.3e-9        
+        fnum=60 # f-number
+        Delta_x=11e-6 ##Size of the pixel [m]
+        return wvl,fnum,Delta_x
+    except UnboundLocalError:
+        print('Error in function "tumag_params": pref must be one'
+        'of the following strings: "52502", "52506" or "517"')
+        sys.exit()    
+
 
 def compute_nuc(N,wvl,fnum,Delta_x):
     """
@@ -1345,8 +1351,105 @@ def minimization_jitter2(Ok,gamma,plate_scale,nuc,N,sigma0,cut=None,print_res=Tr
         print(minim)
     return minim.x#np.array([minim.x]).T #To return an array consisting of 1 column
 
+def correct_jitter_along_series(ima,zernikes,pref='52502',cut=None,cobs=32.4,
+                                low_f=0.2,reg1=0.05,reg2=1,
+                                plate_scale=0.0378,print_res=False):
+    """
+    Function that infers andcorrect jitter  for a series of
+    images recorded by TuMag. All images must be recorded at the 
+    same wavelength and modulation state of the LCVRs.
+    Input:
+        ima: 3D array with the images. The first index corresponds to the
+            image index. The second and third indices correspond to the
+            spatial dimensions of the images: (frame #, x, y)
+        zernikes: Numpy array with the Zernike coefficients to be optimized,
+            the first three terms being zero: np.array([0,0,0,a4,a5,...])
+        cobs: central obscuration of the telescope (0 if off-axis).
+        cut: number of pixels to be excluded near the edges of the image (to
+            compute the merit function).
+        low_f: low limit of the noise filter, as defined in 'filter_sch'      
+        pref: '515', '52502' (default) or '52506'. Prefilter corresponding
+            to the images
+        reg1, reg2: regularization parametersn of the type reg1*(nu/nuc)**reg2
+            for the restoration
+        plate_scale: plate scale in arcsec/pixel
+        print_rest: True or False (default). To print detailed results of the
+            minimization process.
+    Output:
+        ima_series: 3D array with the images corrected from wavefront error and
+            jitter along the series
+        sigma_vec: 2D array with the results of the optimization process for
+            each image along the series
+    """
+    #Move axis with frame index to last axis and compute the # of frames
+    ima=np.moveaxis(ima,0,-1)
+    Nframes=ima.shape[2]
+    N=ima.shape[0] #Size of each spatial dimension of the images
 
-def read_image(file,ext,num_im=0,norma='yes'):
+    #Find image with highest contrast along the series
+    contrast=np.zeros(Nframes)
+    for i in range(Nframes):
+        contrast[i]=np.std(ima[:,:,i])/np.mean(ima[:,:,i])
+
+    i_max=np.argmax(contrast)
+    print('Image with highest contrast along the series:',i_max)
+
+    #Settings for object_estimate
+    a_aver=zernikes #Zernike coefficients 
+    a_d=0 #For object_estimate to restore a single image
+    wvl,fnum,Delta_x=tumag_params(pref=pref)
+    nuc,R=compute_nuc(N,wvl,fnum,Delta_x)
+
+    #Image padding to reduce edge effects when restoring
+    ima_pad,pad_width=padding(ima)
+    cut=pad_width#To later select the non-padded region
+
+    # Correct from jitter along the series
+    sigma_vec=np.zeros((Nframes,3))
+    ima_series=ima.copy()
+    ima_series[:,:,i_max]=ima[:,:,i_max]
+
+    #Correct jitter from i_max to last index 
+    for i in range(i_max,Nframes-1):
+        print('-----------------')
+        print('Image index %g'%(i+1))
+
+                     
+        #Compute jitter 
+        ima_jitt=ima_series[:,:,(i,i+1)]
+        Ok,gamma,wind,susf=prepare_PD(ima_jitt,nuc,N)
+        sigma0=sigma_vec[i,:]    
+        sigma=minimization_jitter2(Ok,gamma,plate_scale,nuc,N,sigma0,
+                                            cut=int(0.15*N),print_res=print_res)  
+        sigma_vec[i+1,:]=sigma
+        print('Sigma:',sigma)  
+
+    #Correct jitter from i_max to 0    
+    for i in range(i_max,0,-1):
+        print('-----------------')
+        print('Image index %g'%i)
+
+         
+        #Compute jitter
+        ima_jitt=ima_series[:,:,(i,i-1)] 
+        Ok,gamma,wind,susf=prepare_PD(ima_jitt,nuc,N)
+        sigma0=sigma_vec[i,:]    
+        sigma=minimization_jitter2(Ok,gamma,plate_scale,nuc,N,sigma0,
+                                          cut=int(0.15*N),print_res=print_res)     
+        sigma_vec[i-1,:]=sigma
+        print('Sigma:',sigma)  
+
+    #Restore images from jitter and aberrations
+    for i in range(Nframes): 
+        o_plot,_,noise_filt=object_estimate_jitter(ima_pad[:,:,i],
+                        sigma_vec[i,:],a_aver,a_d,cobs=cobs,low_f=low_f,wind=True,reg1=reg1,reg2=reg2)
+        ima_series[:,:,i]=o_plot[cut:-cut,cut:-cut]
+
+    # Move again axis with frame index to first axis 
+    ima_series=np.moveaxis(ima_series,-1,0)    
+    return ima_series,sigma_vec
+
+def read_image(file,ext,num_im=0,norma='yes',header=False):
     """
     Function that opens an image and resizes it to fill the NxN detector
     """
@@ -1364,9 +1467,9 @@ def read_image(file,ext,num_im=0,norma='yes'):
         data=I['map'] 
         return data
     elif ext=='.fits':
-        from astropy.io import fits
         I=fits.open(file+ext)
         data = I[0].data
+
         #If first dimension corresponds to focused and defocused images
         if data.ndim==3:
             if data.shape[1]==data.shape[2]:#Reorder axes and crop the image
@@ -1377,7 +1480,10 @@ def read_image(file,ext,num_im=0,norma='yes'):
                 l2=int(N/2)
                 data=data[(xcen-l2):(xcen+l2),(xcen-l2):(xcen+l2),:]
         elif data.ndim==4:
-            return data
+            if header is True:
+                return data,I[0].header
+            else:
+                return data
         #If last dimension corresponds to focused and defocused images
         if data.shape[0]==data.shape[1]:
             if data.ndim==3: #If 'data' contains 3 dimensions
@@ -1402,12 +1508,18 @@ def read_image(file,ext,num_im=0,norma='yes'):
                     #    defoc=I[1].data
                     #    return data,defoc
                     #except:
-                    return data
+                    if header is True:
+                        return data,I[0].header
+                    else:
+                        return data
                 elif data.ndim==2:
                     data=data/np.mean(data)
                     data=data[0:data.shape[0],0:data.shape[1]]
                     data = np.array(data,dtype='float64')
-                    return data
+                    if header is True:
+                        return data,I[0].header
+                    else:
+                        return data
             else:
                 I = data
                 I = np.array(I,dtype='float64')
@@ -1586,7 +1698,7 @@ def prepare_PD(ima,nuc,N,wind=True,kappa=100):
 
         #Compute and correct the shifts wich respect to the focused image
         _,row_shift,col_shift,Gshift=sf.dftreg(Of,Ok[:,:,i],kappa)
-        print('Residual shift:',row_shift,col_shift)
+        print('Residual shift among the pair of images:',row_shift,col_shift)
 
         Ok[:,:,i]=Gshift #We shift Ok[:,:,i]
         #Shift to center the FTTs
@@ -2032,7 +2144,7 @@ def simulate_jitter(ima,sigmax,sigmay,plate_scale,Nacc):
     ima_shift=ima_shift/Nacc
     return ima_shift,rms_x,rms_y
 
-def read_crop_reorder(path,ext,cam,wave,modul,crop=False,
+def read_crop_reorder(path,ext,cam,wave,modul,header=False,crop=False,
                       crop_region=[200,1800,200,1800]):
     """
     Function that reads a TuMag image, crops its central part
@@ -2042,6 +2154,7 @@ def read_crop_reorder(path,ext,cam,wave,modul,crop=False,
         cam: camera (0 or 1)
         wave: wavelength (From 0 to 10)
         modul: modulation (From 0 to 4)
+        header: True to read the header (valid for FITS files)
         crop: True to crop the image
         crop_region: region to crop the image if 'crop' is True
     """
@@ -2050,7 +2163,10 @@ def read_crop_reorder(path,ext,cam,wave,modul,crop=False,
         ima=np.load(path+ext)
         ima=ima[cam,wave,modul,:,:]
     else:
-        ima=read_image(path,ext,norma='yes')
+        if header==True:
+            ima,hdr=read_image(path,ext,norma='no',header=True)
+        else:    
+            ima=read_image(path,ext,norma='no')
 
 
     #Crop the image
@@ -2068,7 +2184,10 @@ def read_crop_reorder(path,ext,cam,wave,modul,crop=False,
         ima=ima[:,modul,:,:]  #Select first modulation          
         ima=np.moveaxis(ima,0,-1) #Move image index to last index
         ima=ima/np.mean(ima[:200,:200,0])#Normalize images to continuum
-    return ima
+    if header is True:
+        return ima,hdr
+    else:
+        return ima
 
 def radial_MTF(a,a_d,sigma,plate_scale,cobs=0,inst='tumag',
                tiptilt=False):

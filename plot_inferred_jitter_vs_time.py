@@ -64,7 +64,7 @@ for sigma_i in sigma:
     xlabel='Time (s)'
     ylabel=r'$\Delta\sigma$ [arcsec]'
 
-    axs.scatter(time,rms_error,color=color[i],label=r'$\sigma_{\rm true}=%g$ arcsec'%sigmax[i])
+    axs.scatter(time,rms_error,color=color[i],label=r'$\sigma_{x}=\sigma_{y}=%g$ arcsec'%sigmax[i])
     axs.fill_between(time, rms_error-rms_error_std, rms_error+rms_error_std,
                       color=color[i], alpha=0.2)
     axs.set_ylim([-0.0001,ymax])
